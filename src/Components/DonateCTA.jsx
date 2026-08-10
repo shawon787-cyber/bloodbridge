@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 
 const DonateCTA = () => {
   return (
-    <section className="mx-auto max-w-7xl px-4 pb-12 pt-16 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl px-4 pb-12  sm:px-6 lg:px-8">
       <div className="relative overflow-hidden rounded-[28px] bg-[#A4161A] px-6 py-12 sm:px-10 lg:px-14">
 
         {/* Decorative Elements */}

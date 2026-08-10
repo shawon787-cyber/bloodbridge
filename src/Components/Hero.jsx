@@ -230,11 +230,11 @@ const Hero = () => {
 
                 <div className="text-center">
                   <p className="text-lg font-black text-slate-900">
-                    1.8K+
+                    $15,256
                   </p>
 
                   <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Lives Supported
+                    Total Funds Raised
                   </p>
                 </div>
 
