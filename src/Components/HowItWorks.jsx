@@ -43,7 +43,7 @@ const steps = [
 
 const HowItWorks = () => {
   return (
-    <section className="relative overflow-hidden bg-white pt-16 pb-10 sm:pt-20 lg:pt-24 ">
+    <section className="relative overflow-hidden bg-white pt-16 pb-12 sm:pt-20 lg:pt-24 ">
 
       {/* Background Decoration */}
       <div className="pointer-events-none absolute left-1/2 top-20 -z-0 h-72 w-72 -translate-x-1/2 rounded-full bg-[#FFF1F3] blur-3xl" />
