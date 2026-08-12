@@ -86,7 +86,7 @@ const Navbar = () => {
             <>
               {/* Login */}
               <Link
-                href="/login"
+                href="/auth/SignInPage"
                 className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors duration-200 hover:text-[#D62839]"
               >
                 Login
@@ -94,7 +94,7 @@ const Navbar = () => {
 
               {/* Become Donor */}
               <Link
-                href="/register"
+                href="/auth/SignUpPage"
                 className="group flex items-center gap-2 rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(214,40,57,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#A4161A] hover:shadow-[0_8px_24px_rgba(214,40,57,0.25)]"
               >
                 <Droplet
@@ -203,7 +203,7 @@ const Navbar = () => {
             <div className="grid grid-cols-2 gap-3">
 
               <Link
-                href="/login"
+                href="/auth/SignInPage"
                 onClick={() => setIsOpen(false)}
                 className="rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
@@ -211,7 +211,7 @@ const Navbar = () => {
               </Link>
 
               <Link
-                href="/register"
+                href="/auth/SignUpPage"
                 onClick={() => setIsOpen(false)}
                 className="flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#A4161A]"
               >
