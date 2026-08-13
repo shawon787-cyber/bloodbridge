@@ -38,6 +38,7 @@ const SignupPage = () => {
     bloodGroup: "",
     district: "",
     upazila: "",
+    role: "donor",
     password: "",
     confirmPassword: "",
   });
@@ -101,6 +102,7 @@ const SignupPage = () => {
       bloodGroup: formData.bloodGroup,
       district: formData.district,
       upazila: formData.upazila,
+      role: formData.role,
       callbackURL: "/",
     });
 
@@ -515,6 +517,32 @@ const SignupPage = () => {
                   </select>
 
                 </div>
+                {/* Account Role */}
+
+<div>
+  <label
+    htmlFor="role"
+    className="mb-2 block text-xs font-bold text-[#333333]"
+  >
+    Account Type
+  </label>
+
+  <select
+    id="role"
+    name="role"
+    value={formData.role}
+    onChange={handleChange}
+    required
+    className="h-12 w-full appearance-none rounded-xl border border-[#E8DADC] bg-[#FFFCFC] px-4 text-sm text-[#555555] outline-none transition-all focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
+  >
+    <option value="donor">Donor</option>
+    <option value="volunteer">Volunteer</option>
+  </select>
+
+  <p className="mt-1.5 text-[10px] text-[#AAAAAA]">
+    Choose how you want to participate in BloodBridge.
+  </p>
+</div>
 
 
                 {/* =====================================

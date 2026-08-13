@@ -166,7 +166,7 @@ const handleSubmit = async (e) => {
 
               <div className="max-w-md">
 
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-red-100 backdrop-blur-md">
+                {/* <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-red-100 backdrop-blur-md">
 
                   <Droplets
                     size={31}
@@ -174,10 +174,10 @@ const handleSubmit = async (e) => {
                     strokeWidth={1.5}
                   />
 
-                </div>
+                </div> */}
 
 
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200 lg:hidden">
                   Welcome back
                 </p>
 

@@ -12,6 +12,7 @@ import {
   LogOut,
   Droplet,
 } from "lucide-react";
+import { signOut, useSession } from "@/lib/auth-client";
 
 const navLinks = [
   {
@@ -33,11 +34,24 @@ const navLinks = [
 ];
 
 const Navbar = () => {
+  const [imageError, setImageError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const { data:session, isPending } =useSession();
+  // console.log("Session data:", session, "Is pending:", isPending);
+  const user = session?.user;
 
   // Replace this with your real authentication state
-  const isLoggedIn = false;
+  const isLoggedIn = !!session?.user;
+  const handleLogout = async () => {
+  try {
+    await signOut();
+    setUserMenu(false);
+    setIsOpen(false);
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+};
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
@@ -115,11 +129,20 @@ const Navbar = () => {
               >
                 {/* Avatar */}
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FDECEF] text-sm font-bold text-[#D62839]">
-                  S
+                    {user?.image && !imageError ? (
+                      <img
+                        src={user.image}
+                        alt={user.name || "User"}
+                        onError={() => setImageError(true)}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      user?.name?.trim()?.charAt(0)?.toUpperCase() || "U"
+                    )}
                 </div>
 
                 <span className="text-sm font-semibold text-slate-700">
-                  Shawon
+                  {user?.name || "User"}
                 </span>
 
                 <ChevronDown
@@ -153,6 +176,7 @@ const Navbar = () => {
                   <div className="my-1 border-t border-slate-100" />
 
                   <button
+                  onClick={handleLogout}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
                   >
                     <LogOut size={17} />
@@ -242,7 +266,7 @@ const Navbar = () => {
               </Link>
 
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={handleLogout}
                 className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50"
               >
                 <LogOut size={18} />

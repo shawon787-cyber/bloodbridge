@@ -46,7 +46,7 @@ export const auth = betterAuth({
       role: {
         type: "string",
         required: true,
-        input: false,
+        input: true,
         returned: true,
         defaultValue: "donor",
       },
