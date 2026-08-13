@@ -194,17 +194,6 @@ const SignupPage = () => {
 
               <div className="max-w-md">
 
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-red-100 backdrop-blur-xl mt-6">
-
-                  <Droplets
-                    size={31}
-                    fill="currentColor"
-                    strokeWidth={1.5}
-                  />
-
-                </div>
-
-
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200">
                   Become a donor
                 </p>

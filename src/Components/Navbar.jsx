@@ -46,8 +46,13 @@ const Navbar = () => {
   const handleLogout = async () => {
   try {
     await signOut();
+
     setUserMenu(false);
     setIsOpen(false);
+
+    
+    router.push("/");
+    router.refresh();
   } catch (error) {
     console.error("Logout failed:", error);
   }
