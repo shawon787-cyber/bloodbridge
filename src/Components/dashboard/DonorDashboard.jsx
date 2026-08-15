@@ -51,13 +51,7 @@ const donorStats = [
     icon: Award,
     color: "#F59E0B",
   },
-  {
-    label: "Available Requests",
-    value: "5",
-    change: "Nearby",
-    icon: ClipboardList,
-    color: "#2563EB",
-  },
+  
 ];
 
 /* =================================
@@ -260,13 +254,7 @@ export default function DonorDashboard({ user }) {
       icon: Award,
       color: "#F59E0B",
     },
-    {
-      label: "Available Requests",
-      value: String(availableRequestsCount),
-      change: "Nearby",
-      icon: ClipboardList,
-      color: "#2563EB",
-    },
+    
   ];
 
   /* =================================
@@ -346,7 +334,7 @@ export default function DonorDashboard({ user }) {
           DONOR STATS
       ================================= */}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
         {donorStats.map((stat) => {
           const Icon = stat.icon;

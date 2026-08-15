@@ -1,27 +1,38 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-
+import { useState, useEffect, useCallback, useContext } from "react";
+import { createContext } from "react";
 import { donationRequests as legacyDonationRequests } from "@/data/donationRequests";
 import { mockBloodRequests } from "@/data/mockData";
+import {
+  normalizeStatus,
+  DONATION_REQUEST_STATUSES,
+} from "@/lib/donationRequests";
 
-const STORAGE_KEY = "bloodbridge-donation-requests";
+const STORAGE_KEY = "bloodbridge_donation_requests";
+
+const buildLocation = (raw) => {
+  if (!raw) return { name: "", districtName: "", upazilaName: "" };
+
+  const text = String(raw);
+  let districtName = "";
+  let upazilaName = "";
+
+  if (text.includes(",")) {
+    const parts = text.split(",");
+    districtName = parts[parts.length - 1]?.trim() || "";
+    upazilaName = parts[parts.length - 2]?.trim() || "";
+  } else {
+    districtName = text.trim();
+  }
+
+  return { name: text, districtName, upazilaName };
+};
 
 const normalizeRequest = (req) => {
   if (!req || typeof req !== "object") return null;
 
-  const rawLocation = req.location || req.address || "";
-
-  let districtName = "";
-  let upazilaName = "";
-
-  if (rawLocation.includes(",")) {
-    const parts = rawLocation.split(",");
-    districtName = parts[parts.length - 1]?.trim() || "";
-    upazilaName = parts[parts.length - 2]?.trim() || "";
-  } else {
-    districtName = rawLocation.trim();
-  }
+  const location = buildLocation(req.location || req.address || "");
 
   const rawUnits = req.units;
   let normalizedUnits = "1";
@@ -35,25 +46,73 @@ const normalizeRequest = (req) => {
   const rawDate = req.donationDate || req.date || req.requiredDate || "";
   const rawTime = req.donationTime || req.time || "";
 
+  const recipientName = req.recipientName || req.name || req.patient || "";
+  const hospitalName = req.hospitalName || req.hospital || "";
+  const requesterName = req.requesterName || req.contact || req.name || "";
+  const requesterEmail = req.requesterEmail || req.email || "";
+
+  const status = normalizeStatus(req.status);
+
+  const districtId = req.districtId || req.district || "";
+  const upazilaId = req.upazilaId || req.upazila || "";
+
+  const districtName =
+    req.districtName || location.districtName || "";
+  const upazilaName =
+    req.upazilaName || location.upazilaName || "";
+
+  const id = req.id || req.requestId || `DR-${Date.now()}`;
+  const createdAt = req.createdAt || new Date().toISOString();
+
+  const canonical = {
+    id,
+    requester: {
+      name: requesterName,
+      email: requesterEmail,
+    },
+    recipient: {
+      name: recipientName,
+      bloodGroup: req.bloodGroup || "",
+      units: normalizedUnits,
+    },
+    hospital: {
+      name: hospitalName,
+    },
+    location: {
+      districtId: String(districtId),
+      districtName,
+      upazilaId: String(upazilaId),
+      upazilaName,
+      address: req.address || location.name || "",
+    },
+    requiredDate: rawDate,
+    requiredTime: rawTime,
+    urgency: req.urgency || "",
+    message: req.message || req.description || "",
+    status,
+    createdAt,
+    updatedAt: req.updatedAt || createdAt,
+  };
+
   return {
-    id: req.id || req.requestId || `DR-${Date.now()}`,
-    requesterName: req.requesterName || req.contact || req.name || "",
-    requesterEmail: req.requesterEmail || req.email || "",
-    recipientName: req.recipientName || req.name || req.patient || "",
-    hospitalName: req.hospitalName || req.hospital || "",
-    district: req.district || "",
-    districtName: districtName,
-    upazila: req.upazila || "",
-    upazilaName: upazilaName,
+    ...canonical,
+    requesterName,
+    requesterEmail,
+    recipientName,
+    hospitalName,
+    district: String(districtId),
+    districtName,
+    upazila: String(upazilaId),
+    upazilaName,
     bloodGroup: req.bloodGroup || "",
     units: normalizedUnits,
     donationDate: rawDate,
     donationTime: rawTime,
-    urgency: req.urgency || "",
-    address: req.address || rawLocation,
-    message: req.message || req.description || "",
-    status: req.status || "Pending",
-    createdAt: req.createdAt || new Date().toISOString(),
+    address: req.address || location.name || "",
+    contact: req.contact || requesterName,
+    description: req.message || req.description || "",
+    patient: recipientName,
+    location: location.name,
   };
 };
 
@@ -96,29 +155,46 @@ export function DonationRequestProvider({ children }) {
     }
   }, [requests, isInitialized]);
 
-  const addDonationRequest = (request) => {
+  const addDonationRequest = useCallback((request) => {
     const normalized = normalizeRequest({
       ...request,
       id: request.id || `DR-${Date.now()}`,
       createdAt: request.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
 
     if (!normalized) return;
 
     setRequests((prev) => [normalized, ...prev]);
-  };
+  }, []);
 
-  const updateDonationRequest = (id, updates) => {
+  const updateDonationRequest = useCallback((id, updates) => {
     setRequests((prev) =>
       prev.map((req) =>
-        req.id === id ? { ...req, ...updates } : req
+        req.id === id
+          ? { ...req, ...updates, updatedAt: new Date().toISOString() }
+          : req
       )
     );
-  };
+  }, []);
 
-  const removeDonationRequest = (id) => {
+  const updateRequestStatus = useCallback((id, status) => {
+    setRequests((prev) =>
+      prev.map((req) =>
+        req.id === id
+          ? { ...req, status: normalizeStatus(status), updatedAt: new Date().toISOString() }
+          : req
+      )
+    );
+  }, []);
+
+  const getRequestById = useCallback((id) => {
+    return requests.find((req) => req.id === id) || null;
+  }, [requests]);
+
+  const removeDonationRequest = useCallback((id) => {
     setRequests((prev) => prev.filter((req) => req.id !== id));
-  };
+  }, []);
 
   return (
     <DonationRequestContext.Provider
@@ -126,8 +202,11 @@ export function DonationRequestProvider({ children }) {
         requests,
         addDonationRequest,
         updateDonationRequest,
+        updateRequestStatus,
+        getRequestById,
         removeDonationRequest,
         isInitialized,
+        statuses: DONATION_REQUEST_STATUSES,
       }}
     >
       {children}

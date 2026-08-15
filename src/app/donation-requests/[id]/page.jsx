@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -16,7 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
-import { donationRequests } from "@/data/donationRequests";
+import { useDonationRequests } from "@/context/DonationRequestContext";
 
 const urgencyColor = (urgency) => {
   switch (urgency) {
@@ -57,20 +57,16 @@ const SectionTitle = ({ children }) => (
 
 export default function DonationRequestDetailsPage() {
   const params = useParams();
-  const [loading, setLoading] = useState(true);
-  const [request, setRequest] = useState(null);
+  const { requests, isInitialized, getRequestById } = useDonationRequests();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const found = donationRequests.find((r) => r.id === params.id);
-      setRequest(found || null);
-      setLoading(false);
-    }, 400);
+  const request = useMemo(() => {
+    if (!params.id) return null;
+    return getRequestById(params.id);
+  }, [params.id, getRequestById]);
 
-    return () => clearTimeout(timer);
-  }, [params.id]);
+  const isLoading = !isInitialized;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <main className="min-h-screen bg-[#FFF7F8]">
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -167,7 +163,7 @@ export default function DonationRequestDetailsPage() {
                     #{request.id}
                   </p>
                   <p className="text-sm font-semibold text-[#64748B]">
-                    {request.name}
+                    {request.recipientName}
                   </p>
                 </div>
               </div>
@@ -179,11 +175,11 @@ export default function DonationRequestDetailsPage() {
             <div className="mt-5">
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${urgencyColor(
-                  request.status === "Urgent" ? "Urgent" : request.status
+                  request.urgency === "Urgent" ? "Urgent" : request.urgency
                 )}`}
               >
                 <AlertTriangle size={12} />
-                {request.status === "Urgent" ? "Urgent" : request.status}
+                {request.urgency === "Urgent" ? "Urgent" : request.urgency || "Standard"}
               </span>
             </div>
 
@@ -192,7 +188,7 @@ export default function DonationRequestDetailsPage() {
             {/* Patient Information */}
             <SectionTitle>Patient Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={User} label="Patient Name" value={request.name} />
+              <InfoRow icon={User} label="Patient Name" value={request.recipientName} />
               <InfoRow icon={Droplets} label="Blood Group" value={request.bloodGroup} />
               <InfoRow icon={Droplets} label="Units Required" value={request.units} />
               <InfoRow
@@ -211,18 +207,18 @@ export default function DonationRequestDetailsPage() {
             {/* Request Information */}
             <SectionTitle>Request Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={CalendarDays} label="Required Date" value={request.date} />
-              <InfoRow icon={Clock3} label="Required Time" value={request.time} />
+              <InfoRow icon={CalendarDays} label="Required Date" value={request.requiredDate} />
+              <InfoRow icon={Clock3} label="Required Time" value={request.requiredTime} />
               <InfoRow
                 icon={AlertTriangle}
                 label="Urgency"
                 value={
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${urgencyColor(request.status === "Urgent" ? "Urgent" : "Medium")}`}>
-                    {request.status === "Urgent" ? "Urgent" : "Medium"}
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${urgencyColor(request.urgency === "Urgent" ? "Urgent" : "Medium")}`}>
+                    {request.urgency === "Urgent" ? "Urgent" : "Medium"}
                   </span>
                 }
               />
-              <InfoRow icon={CalendarDays} label="Request Created" value={request.createdAt} />
+              <InfoRow icon={CalendarDays} label="Request Created" value={new Date(request.createdAt).toLocaleDateString()} />
             </div>
 
             <div className="my-6 h-px bg-[#F1E5E7]" />
@@ -230,9 +226,9 @@ export default function DonationRequestDetailsPage() {
             {/* Hospital Information */}
             <SectionTitle>Hospital Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={HeartPulse} label="Hospital Name" value={request.hospital} />
-              <InfoRow icon={MapPin} label="Location" value={request.location} />
-              <InfoRow icon={MapPin} label="Address" value={request.address} className="sm:col-span-2" />
+              <InfoRow icon={HeartPulse} label="Hospital Name" value={request.hospital?.name} />
+              <InfoRow icon={MapPin} label="Location" value={request.location?.districtName} />
+              <InfoRow icon={MapPin} label="Address" value={request.location?.address} className="sm:col-span-2" />
             </div>
 
             <div className="my-6 h-px bg-[#F1E5E7]" />
@@ -240,9 +236,9 @@ export default function DonationRequestDetailsPage() {
             {/* Contact Information */}
             <SectionTitle>Contact Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={User} label="Contact Person" value={request.contact} />
-              <InfoRow icon={Phone} label="Phone Number" value={request.phone} />
-              <InfoRow icon={Mail} label="Email" value={request.email} className="sm:col-span-2" />
+              <InfoRow icon={User} label="Contact Person" value={request.requester?.name} />
+              <InfoRow icon={Phone} label="Phone Number" value={request.contact} />
+              <InfoRow icon={Mail} label="Email" value={request.requester?.email} className="sm:col-span-2" />
             </div>
 
             <div className="my-6 h-px bg-[#F1E5E7]" />
@@ -251,7 +247,7 @@ export default function DonationRequestDetailsPage() {
             <SectionTitle>Description</SectionTitle>
             <div className="rounded-xl border border-[#F1F5F9] bg-white p-4 sm:p-5">
               <p className="text-sm leading-7 text-[#64748B]">
-                {request.description}
+                {request.message || request.description}
               </p>
             </div>
 

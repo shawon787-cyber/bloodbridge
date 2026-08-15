@@ -1,461 +1,457 @@
 "use client";
 
-import { useState } from "react";
 import {
   ClipboardList,
-  Droplets,
+  Clock3,
+  LoaderCircle,
   CheckCircle2,
-  Users,
-  Clock,
-  MapPin,
-  Phone,
-  ArrowUpRight,
-  UserPlus,
-  FileText,
-  Bell,
 } from "lucide-react";
+import { useDonationRequests } from "@/context/DonationRequestContext";
+import { getRequestStats } from "@/lib/donationRequests";
 
-import { mockBloodRequests, mockDonors } from "@/data/mockData";
-import PageHeader from "@/Components/dashboard/shared/PageHeader";
-import StatCard from "@/Components/dashboard/shared/StatCard";
-import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
-import Modal from "@/Components/dashboard/shared/Modal";
+// =====================================================
+// DONATION REQUEST CHART DATA
+// =====================================================
 
-export default function VolunteerDashboard() {
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [selectedDonor, setSelectedDonor] = useState(null);
+const requestChartData = [
+  { month: "Mar", requests: 320, completed: 210 },
+  { month: "Apr", requests: 410, completed: 260 },
+  { month: "May", requests: 380, completed: 300 },
+  { month: "Jun", requests: 470, completed: 350 },
+  { month: "Jul", requests: 520, completed: 400 },
+  { month: "Aug", requests: 590, completed: 460 },
+];
 
-  const pendingRequests = mockBloodRequests.filter((r) => r.status === "Pending").length;
-  const urgentRequests = mockBloodRequests.filter((r) => r.urgency === "Urgent").length;
-  const availableDonors = mockDonors.filter((d) => d.availability === "Available").length;
-  const requestsHelped = mockBloodRequests.filter((r) => r.status === "Fulfilled").length;
-  const peopleReached = mockBloodRequests.length * 3;
+// =====================================================
+// BLOOD GROUP DATA
+// =====================================================
 
-  const urgentBloodRequests = mockBloodRequests
-    .filter((r) => r.urgency === "Urgent" || r.urgency === "High")
-    .slice(0, 4);
+const bloodGroups = [
+  { group: "A+", value: 820 },
+  { group: "A-", value: 190 },
+  { group: "B+", value: 650 },
+  { group: "B-", value: 150 },
+  { group: "AB+", value: 210 },
+  { group: "AB-", value: 70 },
+  { group: "O+", value: 940 },
+  { group: "O-", value: 180 },
+];
 
-  const availableDonorsList = mockDonors.filter((d) => d.availability === "Available").slice(0, 4);
+// =====================================================
+// LINE CHART
+// =====================================================
+
+function DonationRequestChart() {
+  const width = 620;
+  const height = 300;
+
+  const paddingLeft = 55;
+  const paddingRight = 15;
+  const paddingTop = 25;
+  const paddingBottom = 45;
+
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const maxValue = 600;
+
+  const getX = (index) => {
+    return (
+      paddingLeft +
+      (index / (requestChartData.length - 1)) * chartWidth
+    );
+  };
+
+  const getY = (value) => {
+    return (
+      paddingTop +
+      chartHeight -
+      (value / maxValue) * chartHeight
+    );
+  };
+
+  const requestPoints = requestChartData
+    .map((item, index) => `${getX(index)},${getY(item.requests)}`)
+    .join(" ");
+
+  const completedPoints = requestChartData
+    .map((item, index) => `${getX(index)},${getY(item.completed)}`)
+    .join(" ");
+
+  const yLabels = [0, 150, 300, 450, 600];
 
   return (
-    <div className="min-h-screen space-y-7">
-      <PageHeader
-        title="Volunteer Dashboard"
-        subtitle="Welcome back! Here's what's happening in your BloodBridge community."
-      />
+    <div className="mt-5 w-full overflow-hidden">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+        preserveAspectRatio="none"
+      >
+        {/* =========================
+            GRID LINES
+        ========================= */}
 
-      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard
-          title="Pending Blood Requests"
-          value={pendingRequests}
-          change="+2 new"
-          positive={true}
-          icon={ClipboardList}
-          color="#D62839"
-        />
-        <StatCard
-          title="Urgent Requests"
-          value={urgentRequests}
-          change="+1 today"
-          positive={false}
-          icon={Droplets}
-          color="#EF4444"
-        />
-        <StatCard
-          title="Available Donors"
-          value={availableDonors}
-          change="Online now"
-          positive={true}
-          icon={Users}
-          color="#2563EB"
-        />
-        <StatCard
-          title="Requests Helped"
-          value={requestsHelped}
-          change="+3 this week"
-          positive={true}
-          icon={CheckCircle2}
-          color="#16A34A"
-        />
-        <StatCard
-          title="People Reached"
-          value={peopleReached}
-          change="+12 today"
-          positive={true}
-          icon={Clock}
-          color="#7C3AED"
-        />
-      </section>
+        {yLabels.map((value) => {
+          const y = getY(value);
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] px-5 py-4">
-              <h3 className="text-sm font-bold text-[#111827]">Urgent Blood Requests</h3>
-              <span className="text-xs font-semibold text-[#94A3B8]">
-                {urgentBloodRequests.length} requests
-              </span>
-            </div>
-            <div className="divide-y divide-[#F8FAFC]">
-              {urgentBloodRequests.map((req) => (
-                <div
-                  key={req.id}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-[#FFF7F8] transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-sm font-black text-[#D62839]">
-                      {req.bloodGroup}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[#111827]">{req.patient}</p>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-[#64748B]">
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} />
-                          {req.location}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Droplets size={12} />
-                          {req.units} unit{req.units > 1 ? "s" : ""}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <StatusBadge status={req.urgency.toLowerCase()} />
-                    <p className="mt-1 text-xs text-[#94A3B8]">{req.hospital}</p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRequest(req)}
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[#D62839] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#A4161A]"
-                    >
-                      View
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          return (
+            <g key={value}>
+              <line
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={y}
+                y2={y}
+                stroke="#e2e8f0"
+                strokeDasharray="5 5"
+              />
 
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] px-5 py-4">
-              <h3 className="text-sm font-bold text-[#111827]">Available Donors</h3>
-              <span className="text-xs font-semibold text-[#94A3B8]">
-                {availableDonorsList.length} donors
-              </span>
-            </div>
-            <div className="divide-y divide-[#F8FAFC]">
-              {availableDonorsList.map((donor) => (
-                <div
-                  key={donor.id}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-[#FFF7F8] transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-sm font-black text-[#D62839]">
-                      {donor.bloodGroup}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[#111827]">{donor.name}</p>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-[#64748B]">
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} />
-                          {donor.location}
-                        </span>
-                        <span>{donor.distance}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <StatusBadge status={donor.availability.toLowerCase()} />
-                    <p className="mt-1 text-xs text-[#94A3B8]">
-                      Last donation: {new Date(donor.lastDonation).toLocaleDateString()}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDonor(donor)}
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-xs font-bold text-[#64748B] transition-colors hover:border-[#D62839] hover:text-[#D62839]"
-                    >
-                      <Phone size={12} />
-                      Contact
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+              <text
+                x={paddingLeft - 12}
+                y={y + 4}
+                textAnchor="end"
+                fontSize="12"
+                fill="#64748b"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* =========================
+            RED LINE
+        ========================= */}
+
+        <polyline
+          points={requestPoints}
+          fill="none"
+          stroke="#D62839"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* =========================
+            GREEN LINE
+        ========================= */}
+
+        <polyline
+          points={completedPoints}
+          fill="none"
+          stroke="#16a34a"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* =========================
+            RED DOTS
+        ========================= */}
+
+        {requestChartData.map((item, index) => (
+          <circle
+            key={`request-${item.month}`}
+            cx={getX(index)}
+            cy={getY(item.requests)}
+            r="3.5"
+            fill="#D62839"
+          />
+        ))}
+
+        {/* =========================
+            GREEN DOTS
+        ========================= */}
+
+        {requestChartData.map((item, index) => (
+          <circle
+            key={`completed-${item.month}`}
+            cx={getX(index)}
+            cy={getY(item.completed)}
+            r="3.5"
+            fill="#16a34a"
+          />
+        ))}
+
+        {/* =========================
+            MONTH LABELS
+        ========================= */}
+
+        {requestChartData.map((item, index) => (
+          <text
+            key={item.month}
+            x={getX(index)}
+            y={height - 18}
+            textAnchor="middle"
+            fontSize="12"
+            fill="#64748b"
+          >
+            {item.month}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// =====================================================
+// BLOOD GROUP BAR CHART
+// =====================================================
+
+function BloodGroupChart() {
+  const width = 620;
+  const height = 300;
+
+  const paddingLeft = 55;
+  const paddingRight = 15;
+  const paddingTop = 25;
+  const paddingBottom = 45;
+
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const maxValue = 1000;
+
+  const barGap = 12;
+
+  const barWidth =
+    (chartWidth - barGap * (bloodGroups.length - 1)) /
+    bloodGroups.length;
+
+  const getY = (value) => {
+    return (
+      paddingTop +
+      chartHeight -
+      (value / maxValue) * chartHeight
+    );
+  };
+
+  const yLabels = [0, 250, 500, 750, 1000];
+
+  return (
+    <div className="mt-5 w-full overflow-hidden">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+        preserveAspectRatio="none"
+      >
+        {/* =========================
+            GRID LINES
+        ========================= */}
+
+        {yLabels.map((value) => {
+          const y = getY(value);
+
+          return (
+            <g key={value}>
+              <line
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={y}
+                y2={y}
+                stroke="#e2e8f0"
+                strokeDasharray="5 5"
+              />
+
+              <text
+                x={paddingLeft - 12}
+                y={y + 4}
+                textAnchor="end"
+                fontSize="12"
+                fill="#64748b"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* =========================
+            BARS
+        ========================= */}
+
+        {bloodGroups.map((item, index) => {
+          const x =
+            paddingLeft +
+            index * (barWidth + barGap);
+
+          const y = getY(item.value);
+
+          const barHeight =
+            paddingTop + chartHeight - y;
+
+          return (
+            <g key={item.group}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                rx="9"
+                fill="#D62839"
+              />
+
+              <text
+                x={x + barWidth / 2}
+                y={height - 18}
+                textAnchor="middle"
+                fontSize="12"
+                fill="#64748b"
+              >
+                {item.group}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// =====================================================
+// MAIN COMPONENT
+// =====================================================
+
+export default function VolunteerDashboard({ user }) {
+  const { requests, isInitialized } = useDonationRequests();
+  const stats = getRequestStats(requests);
+
+  const statCards = [
+    {
+      label: "Total Requests",
+      value: stats.total,
+      icon: ClipboardList,
+    },
+    {
+      label: "Pending",
+      value: stats.pending,
+      icon: Clock3,
+    },
+    {
+      label: "In Progress",
+      value: stats.inProgress,
+      icon: LoaderCircle,
+    },
+    {
+      label: "Completed",
+      value: stats.done,
+      icon: CheckCircle2,
+    },
+  ];
+
+  return (
+    <div className="min-h-full bg-[#f8fafc]">
+      <div className="mx-auto w-full max-w-[1100px] px-4 py-7 sm:px-6 lg:px-8">
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
+        <div className="mb-8">
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+            Welcome back, {user?.name || "Shawonmohammad"}
+          </h1>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Here&apos;s an overview of the whole community.
+          </p>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-            <h3 className="text-sm font-bold text-[#111827]">Volunteer Activity</h3>
-            <p className="mt-1 text-xs text-[#64748B]">Your recent contributions</p>
-            <div className="mt-5 space-y-4">
-              <div className="flex items-center justify-between rounded-xl border border-[#F1F5F9] p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                    <ClipboardList size={16} />
+        {/* =================================================
+            STAT CARDS
+        ================================================= */}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+
+            return (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]"
+              >
+                <div className="flex items-center gap-4">
+                  {/* Icon */}
+
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#FDECEF] text-[#D62839]">
+                    <Icon size={21} strokeWidth={2} />
                   </div>
+
+                  {/* Content */}
+
                   <div>
-                    <p className="text-sm font-semibold text-[#111827]">Requests Handled</p>
-                    <p className="text-xs text-[#94A3B8]">This month</p>
+                    <p className="text-sm font-medium text-slate-500">
+                      {stat.label}
+                    </p>
+
+                    <p className="mt-1 text-2xl font-black leading-none text-slate-950">
+                      {stat.value}
+                    </p>
                   </div>
                 </div>
-                <p className="text-lg font-black text-[#111827]">12</p>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-[#F1F5F9] p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <Users size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#111827]">Donors Contacted</p>
-                    <p className="text-xs text-[#94A3B8]">This month</p>
-                  </div>
-                </div>
-                <p className="text-lg font-black text-[#111827]">28</p>
+            );
+          })}
+        </div>
+
+        {/* =================================================
+            CHARTS
+        ================================================= */}
+
+        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* =================================================
+              DONATION REQUESTS
+          ================================================= */}
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+            <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+              <h2 className="text-sm font-bold text-slate-950">
+                Donation Requests
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Requests vs completed donations, last 6 months
+              </p>
+            </div>
+
+            <DonationRequestChart />
+
+            {/* Legend */}
+
+            <div className="flex items-center gap-5 px-6 pb-5">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#D62839]" />
+                <span className="text-xs text-slate-500">
+                  Requests
+                </span>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-[#F1F5F9] p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
-                    <CheckCircle2 size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#111827]">Successful Matches</p>
-                    <p className="text-xs text-[#94A3B8]">This month</p>
-                  </div>
-                </div>
-                <p className="text-lg font-black text-[#111827]">7</p>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-[#F1F5F9] p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                    <Clock size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#111827]">Hours Contributed</p>
-                    <p className="text-xs text-[#94A3B8]">This month</p>
-                  </div>
-                </div>
-                <p className="text-lg font-black text-[#111827]">34</p>
+
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-600" />
+                <span className="text-xs text-slate-500">
+                  Completed
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
-            <h3 className="text-sm font-bold text-[#111827]">Quick Actions</h3>
-            <p className="mt-1 text-xs text-[#64748B]">Frequently used tools</p>
-            <div className="mt-5 space-y-3">
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border border-[#E5E7EB] p-3 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FDECEF] text-[#D62839]">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#111827]">View Blood Requests</p>
-                  <p className="text-xs text-[#94A3B8]">Browse active requests</p>
-                </div>
-                <ArrowUpRight size={14} className="ml-auto text-[#94A3B8]" />
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border border-[#E5E7EB] p-3 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FDECEF] text-[#D62839]">
-                  <Users size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#111827]">Find Donors</p>
-                  <p className="text-xs text-[#94A3B8]">Search donor database</p>
-                </div>
-                <ArrowUpRight size={14} className="ml-auto text-[#94A3B8]" />
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border border-[#E5E7EB] p-3 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FDECEF] text-[#D62839]">
-                  <Bell size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#111827]">Update Availability</p>
-                  <p className="text-xs text-[#94A3B8]">Set your status</p>
-                </div>
-                <ArrowUpRight size={14} className="ml-auto text-[#94A3B8]" />
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border border-[#E5E7EB] p-3 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FDECEF] text-[#D62839]">
-                  <Droplets size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#111827]">View Funding</p>
-                  <p className="text-xs text-[#94A3B8]">Check campaigns</p>
-                </div>
-                <ArrowUpRight size={14} className="ml-auto text-[#94A3B8]" />
-              </button>
+          {/* =================================================
+              BLOOD GROUP DISTRIBUTION
+          ================================================= */}
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+            <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+              <h2 className="text-sm font-bold text-slate-950">
+                Blood Group Distribution
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Registered donors by group
+              </p>
             </div>
+
+            <BloodGroupChart />
           </div>
         </div>
       </div>
-
-      <Modal
-        isOpen={!!selectedRequest}
-        onClose={() => setSelectedRequest(null)}
-        title="Request Details"
-        width="max-w-lg"
-      >
-        {selectedRequest && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black text-[#111827]">{selectedRequest.id}</h3>
-                <p className="text-sm text-[#64748B]">Patient: {selectedRequest.patient}</p>
-              </div>
-              <StatusBadge status={selectedRequest.status.toLowerCase()} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Blood Group</p>
-                <p className="mt-1 inline-flex rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-black text-[#D62839]">
-                  {selectedRequest.bloodGroup}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Units Required</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedRequest.units}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Hospital</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedRequest.hospital}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Location</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedRequest.location}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Required Date</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">
-                  {new Date(selectedRequest.requiredDate).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Urgency</p>
-                <p className="mt-1">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${
-                      selectedRequest.urgency === "Urgent"
-                        ? "bg-red-50 text-red-600"
-                        : selectedRequest.urgency === "High"
-                        ? "bg-orange-50 text-orange-600"
-                        : selectedRequest.urgency === "Medium"
-                        ? "bg-amber-50 text-amber-600"
-                        : "bg-emerald-50 text-emerald-600"
-                    }`}
-                  >
-                    {selectedRequest.urgency}
-                  </span>
-                </p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs font-bold text-[#94A3B8]">Contact</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedRequest.contact}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs font-bold text-[#94A3B8]">Description</p>
-                <p className="mt-1 text-sm text-[#64748B]">{selectedRequest.description}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#A4161A]"
-              >
-                <UserPlus size={16} />
-                Find Donors
-              </button>
-              <button
-                type="button"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-bold text-[#64748B] transition-colors hover:border-[#D62839] hover:text-[#D62839]"
-              >
-                <Phone size={16} />
-                Contact
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={!!selectedDonor}
-        onClose={() => setSelectedDonor(null)}
-        title="Donor Profile"
-        width="max-w-md"
-      >
-        {selectedDonor && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FDECEF] text-lg font-black text-[#D62839]">
-                {selectedDonor.name.charAt(0)}
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-[#111827]">{selectedDonor.name}</h3>
-                <p className="text-sm text-[#64748B]">{selectedDonor.id}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Blood Group</p>
-                <p className="mt-1 inline-flex rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-black text-[#D62839]">
-                  {selectedDonor.bloodGroup}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Location</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedDonor.location}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Distance</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedDonor.distance}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Availability</p>
-                <div className="mt-1">
-                  <StatusBadge status={selectedDonor.availability.toLowerCase()} />
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Last Donation</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">
-                  {new Date(selectedDonor.lastDonation).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#94A3B8]">Donation Count</p>
-                <p className="mt-1 text-sm font-semibold text-[#111827]">{selectedDonor.donationCount}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#A4161A]"
-              >
-                <Phone size={16} />
-                Contact
-              </button>
-              <button
-                type="button"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-bold text-[#64748B] transition-colors hover:border-[#D62839] hover:text-[#D62839]"
-              >
-                <UserPlus size={16} />
-                Match With Request
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

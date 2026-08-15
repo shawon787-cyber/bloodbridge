@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Users,
   Droplets,
@@ -16,11 +17,13 @@ import {
 } from "lucide-react";
 
 import { useSession } from "@/lib/auth-client";
+import { useDonationRequests } from "@/context/DonationRequestContext";
+import { getRequestStats } from "@/lib/donationRequests";
 
 /* =========================================================
    TEMPORARY DASHBOARD DATA
    Later these values can come from MongoDB/API
-========================================================= */
+======================================================== */
 
 const monthlyRequests = [
   { month: "Mar", requests: 320, completed: 210 },
@@ -40,68 +43,6 @@ const bloodGroups = [
   { group: "AB-", value: 70 },
   { group: "O+", value: 950 },
   { group: "O-", value: 175 },
-];
-
-const donationStatus = [
-  {
-    label: "Pending",
-    value: 18,
-    color: "#F59E0B",
-    icon: Clock3,
-  },
-  {
-    label: "In Progress",
-    value: 12,
-    color: "#2563EB",
-    icon: Activity,
-  },
-  {
-    label: "Completed",
-    value: 64,
-    color: "#16A34A",
-    icon: CheckCircle2,
-  },
-  {
-    label: "Cancelled",
-    value: 6,
-    color: "#D62839",
-    icon: XCircle,
-  },
-];
-
-const recentRequests = [
-  {
-    id: "BR-001",
-    name: "Rahim Uddin",
-    blood: "A+",
-    hospital: "Dhaka Medical College",
-    status: "Urgent",
-    date: "2 hours ago",
-  },
-  {
-    id: "BR-002",
-    name: "Fatima Begum",
-    blood: "O-",
-    hospital: "Square Hospital",
-    status: "Pending",
-    date: "5 hours ago",
-  },
-  {
-    id: "BR-003",
-    name: "Karim Hossain",
-    blood: "B+",
-    hospital: "Popular Hospital",
-    status: "Completed",
-    date: "1 day ago",
-  },
-  {
-    id: "BR-004",
-    name: "Nasreen Akter",
-    blood: "AB+",
-    hospital: "United Hospital",
-    status: "Urgent",
-    date: "1 day ago",
-  },
 ];
 
 const recentUsers = [
@@ -133,23 +74,62 @@ const recentUsers = [
 
 /* =========================================================
    DASHBOARD COMPONENT
-========================================================= */
+======================================================== */
 
 export default function AdminDashboard() {
   const { data: session } = useSession();
+  const { requests } = useDonationRequests();
 
   const user = session?.user;
-
   const userName = user?.name || "Admin";
-
-  /*
-    Since this is currently frontend-based,
-    role is read from session.user.role.
-
-    Later you can replace dashboard data with
-    real MongoDB/API data.
-  */
   const role = user?.role || "admin";
+
+  const requestStats = getRequestStats(requests);
+
+  const donationStatus = [
+    {
+      label: "Pending",
+      value: requestStats.pending,
+      color: "#F59E0B",
+      icon: Clock3,
+    },
+    {
+      label: "In Progress",
+      value: requestStats.inProgress,
+      color: "#2563EB",
+      icon: Activity,
+    },
+    {
+      label: "Completed",
+      value: requestStats.done,
+      color: "#16A34A",
+      icon: CheckCircle2,
+    },
+    {
+      label: "Cancelled",
+      value: requestStats.cancelled,
+      color: "#D62839",
+      icon: XCircle,
+    },
+  ];
+
+  const recentRequests = useMemo(() => {
+    return [...requests]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+      )
+      .slice(0, 4)
+      .map((req) => ({
+        id: req.id,
+        name: req.recipientName,
+        blood: req.bloodGroup,
+        hospital: req.hospitalName,
+        status: req.urgency === "Urgent" ? "Urgent" : req.status,
+        date: new Date(req.createdAt).toLocaleDateString(),
+      }));
+  }, [requests]);
 
   /* =========================================================
      STATISTICS
@@ -172,7 +152,7 @@ export default function AdminDashboard() {
     },
     {
       label: "Total Requests",
-      value: "504",
+      value: String(requestStats.total),
       change: "+5.4%",
       positive: true,
       icon: Droplets,
