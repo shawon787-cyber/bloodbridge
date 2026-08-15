@@ -1,19 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import PageHeader from "@/Components/dashboard/shared/PageHeader";
+import { useEffect, useState } from "react";
+import {
+  Award,
+  Camera,
+  CalendarDays,
+  CheckCircle2,
+  Droplet,
+  Edit3,
+  Heart,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
 export default function DonorProfile() {
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
   const user = session?.user;
+
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [savedFormData, setSavedFormData] = useState(null);
+  const [savedImage, setSavedImage] = useState("");
+  const [imageError, setImageError] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
-    fullName: user?.name || "Arif Khan",
-    email: user?.email || "arif@email.com",
+    fullName: "",
+    email: "",
+    image: "",
     phone: "+880 1711-100001",
     bloodGroup: "A+",
     dateOfBirth: "1990-05-15",
@@ -29,206 +52,1078 @@ export default function DonorProfile() {
     confirm: "",
   });
 
+  // ============================================================
+  // LOAD USER SESSION DATA
+  // ============================================================
+
+  useEffect(() => {
+    if (!user) return;
+
+    const userImage = user.image || "";
+
+    setFormData((prev) => ({
+      ...prev,
+      fullName: user.name || "Arif Khan",
+      email: user.email || "arif@email.com",
+      image: userImage,
+    }));
+
+    setImagePreview(userImage);
+    setSavedImage(userImage);
+    setImageError(false);
+  }, [user]);
+
+  // ============================================================
+  // HANDLE FORM CHANGE
+  // ============================================================
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
+
+  // ============================================================
+  // HANDLE PROFILE IMAGE
+  // ============================================================
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    // Check image type
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file.");
+      e.target.value = "";
+      return;
+    }
+
+    // 5MB limit
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    // Cleanup previous preview URL
+    if (imagePreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setSelectedImage(file);
+    setImagePreview(previewUrl);
+    setImageError(false);
+
+    setFormData((prev) => ({
+      ...prev,
+      image: previewUrl,
+    }));
+  };
+
+  // ============================================================
+  // PASSWORD CHANGE
+  // ============================================================
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordData((prev) => ({ ...prev, [name]: value }));
+
+    setPasswordData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleSave = (e) => {
+  // ============================================================
+  // START EDITING
+  // ============================================================
+
+  const handleEdit = () => {
+    setSavedFormData({ ...formData });
+    setSavedImage(imagePreview);
+
+    setIsEditing(true);
+  };
+
+  // ============================================================
+  // SAVE PROFILE
+  // ============================================================
+
+  const handleSave = async (e) => {
     e.preventDefault();
+
+    /*
+      এখানে তোমার API call করতে পারবে।
+
+      Example:
+
+      const form = new FormData();
+
+      form.append("fullName", formData.fullName);
+      form.append("email", formData.email);
+      form.append("phone", formData.phone);
+
+      if (selectedImage) {
+        form.append("image", selectedImage);
+      }
+
+      await fetch("/api/profile", {
+        method: "PUT",
+        body: form,
+      });
+    */
+
+    setSavedFormData({ ...formData });
+    setSavedImage(imagePreview);
     setIsEditing(false);
   };
+
+  // ============================================================
+  // CANCEL EDITING
+  // ============================================================
 
   const handleCancel = () => {
+    if (savedFormData) {
+      setFormData(savedFormData);
+    }
+
+    // Remove newly selected blob image
+    if (
+      imagePreview?.startsWith("blob:") &&
+      imagePreview !== savedImage
+    ) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setImagePreview(savedImage || "");
+    setSelectedImage(null);
     setIsEditing(false);
+    setImageError(false);
   };
 
-  const donationInfo = [
-    { label: "Last Donation", value: "Jul 15, 2025" },
-    { label: "Total Donations", value: "12" },
-    { label: "Availability", value: "Available", highlight: true },
-    { label: "Preferred Contact", value: "Phone / SMS" },
-  ];
+  // ============================================================
+  // IMAGE ERROR
+  // ============================================================
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  // ============================================================
+  // CLEANUP OBJECT URL
+  // ============================================================
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  // ============================================================
+  // FIRST LETTER
+  // ============================================================
+
+  const firstLetter =
+    formData.fullName?.trim()?.charAt(0)?.toUpperCase() || "U";
+
+  // ============================================================
+  // LOADING
+  // ============================================================
+
+  if (isPending) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
+      </div>
+    );
+  }
+
+  // ============================================================
+  // UI
+  // ============================================================
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="My Profile"
-        subtitle="Manage your personal information and donation details"
+    <div className="min-h-full bg-[#FFF9FA] p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1500px] space-y-5">
+
+        {/* =====================================================
+            PROFILE HERO
+        ====================================================== */}
+
+        <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#A4161A] via-[#D62839] to-[#F21D3B] p-6 text-white shadow-[0_15px_40px_rgba(214,40,57,0.18)] sm:p-8">
+
+          {/* Decorative shapes */}
+
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border-[40px] border-white/5" />
+
+          <div className="pointer-events-none absolute right-20 top-8 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
+
+          <Heart
+            className="pointer-events-none absolute -bottom-8 right-10 h-40 w-40 rotate-12 text-white/5"
+            fill="currentColor"
+          />
+
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+
+            {/* Profile identity */}
+
+            <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+
+              {/* =================================================
+                  PROFILE IMAGE
+              ================================================= */}
+
+              <div className="relative shrink-0">
+
+                <div className="relative h-28 w-28 sm:h-32 sm:w-32">
+
+                  {/* Profile Image */}
+
+                  {imagePreview && !imageError ? (
+                    <img
+                      src={imagePreview}
+                      alt={formData.fullName || "Profile"}
+                      onError={handleImageError}
+                      className="h-full w-full rounded-full border-[5px] border-white/90 object-cover shadow-xl"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-full border-[5px] border-white/90 bg-white text-5xl font-black text-[#D62839] shadow-xl sm:text-6xl">
+                      {firstLetter}
+                    </div>
+                  )}
+
+                  {/* Blood Drop Badge */}
+
+                  <div className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full border-4 border-[#D62839] bg-white text-[#D62839] shadow-md"></div>
+                  {/* =================================================
+                      CAMERA BUTTON
+                      ALWAYS VISIBLE
+                  ================================================= */}
+
+                  <label
+                    htmlFor="profile-image"
+                    title="Change profile photo"
+                    className="absolute bottom-1 right-1 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-[#D62839] text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-[#A4161A] active:scale-95"
+                  >
+                    <Camera size={17} />
+
+                    <span className="sr-only">
+                      Change profile photo
+                    </span>
+                  </label>
+
+                  {/* Hidden file input */}
+
+                  <input
+                    id="profile-image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+
+              {/* Profile details */}
+
+              <div className="text-center sm:text-left">
+
+                <div className="flex flex-col items-center gap-2 sm:flex-row">
+
+                  <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                    {formData.fullName}
+                  </h1>
+
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur-sm">
+                    <ShieldCheck size={14} />
+                    Blood Donor
+                  </span>
+
+                </div>
+
+                <div className="mt-2 flex flex-col gap-2 text-sm text-white/85 sm:flex-row sm:items-center sm:gap-5">
+
+                  <span className="flex items-center justify-center gap-2 sm:justify-start">
+                    <Mail size={15} />
+                    {formData.email}
+                  </span>
+
+                  <span className="flex items-center justify-center gap-2 sm:justify-start">
+                    <MapPin size={15} />
+                    {formData.location}, Bangladesh
+                  </span>
+
+                </div>
+
+                <div className="mt-2 flex items-center justify-center gap-2 text-sm text-white/85 sm:justify-start">
+                  <Phone size={15} />
+                  {formData.phone}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Profile Actions */}
+
+<div className="mx-auto flex items-center gap-3 lg:mx-0">
+  {!isEditing ? (
+    <button
+      type="button"
+      onClick={handleEdit}
+      className="group flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50"
+    >
+      <Edit3
+        size={16}
+        className="transition-transform duration-200 group-hover:rotate-[-8deg]"
       />
 
-      {/* Profile Header Card */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col items-center gap-4 sm:flex-row">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#D62839] text-3xl font-black text-white">
-            {formData.fullName.charAt(0)}
-          </div>
-          <div className="text-center sm:text-left">
-            <h2 className="text-xl font-black text-slate-900">{formData.fullName}</h2>
-            <p className="mt-1 text-sm text-slate-500">{formData.email}</p>
-            <span className="mt-2 inline-flex rounded-full bg-[#FDECEF] px-3 py-1 text-xs font-bold text-[#D62839]">
-              Blood Donor
-            </span>
-          </div>
-        </div>
-      </div>
+      Edit Profile
+    </button>
+  ) : (
+    <>
+      {/* Cancel */}
+      <button
+        type="button"
+        onClick={handleCancel}
+        className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all duration-200 hover:bg-white/20"
+      >
+        <X size={16} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Donation Information */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Donation Information</h3>
-          <p className="mt-1 text-xs text-slate-500">Your donor stats at a glance</p>
-          <div className="mt-4 space-y-3">
-            {donationInfo.map((item) => (
-              <div key={item.label} className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
-                <span className="text-xs font-medium text-slate-500">{item.label}</span>
-                <span className={`text-xs font-bold ${item.highlight ? "text-emerald-600" : "text-slate-900"}`}>
-                  {item.value}
-                </span>
+        Cancel
+      </button>
+
+      {/* Save Changes */}
+      <button
+        type="submit"
+        form="profile-form"
+        className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#D62839] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50"
+      >
+        <CheckCircle2 size={16} />
+
+        Save Changes
+      </button>
+    </>
+  )}
+</div>
+
+          </div>
+
+          {/* =====================================================
+              PROFILE STATS
+          ====================================================== */}
+
+          <div className="relative mt-8 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/20 bg-white/95 text-slate-900 shadow-xl backdrop-blur-md sm:grid-cols-4">
+
+            <Stat
+              icon={<Droplet size={21} />}
+              value="12"
+              label="Total Donations"
+            />
+
+            <Stat
+              icon={<Heart size={21} />}
+              value="12"
+              label="Lives Impacted"
+            />
+
+            <Stat
+              icon={<CalendarDays size={21} />}
+              value="Jul 15, 2025"
+              label="Last Donation"
+            />
+
+            <Stat
+              icon={<Users size={21} />}
+              value="Regular Donor"
+              label="Keep it up!"
+            />
+
+          </div>
+        </section>
+
+        {/* =====================================================
+            MAIN CONTENT
+        ====================================================== */}
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.85fr_1.35fr_0.9fr]">
+
+          {/* ===================================================
+              ABOUT ME
+          ==================================================== */}
+
+          <section className="rounded-[22px] border border-slate-200/80 bg-white p-6 shadow-[0_5px_25px_rgba(15,23,42,0.04)]">
+
+            <div className="mb-5 flex items-center gap-3">
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+                <UserRound size={19} />
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Edit Profile Form */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Personal Information</h3>
-              <p className="mt-1 text-xs text-slate-500">Update your profile details</p>
+              <div>
+                <h2 className="text-sm font-extrabold text-slate-900">
+                  About Me
+                </h2>
+
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Donor information
+                </p>
+              </div>
+
             </div>
-            {!isEditing && (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="rounded-xl bg-[#D62839] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#A4161A]"
-              >
-                Edit Profile
-              </button>
-            )}
-          </div>
 
-          <form onSubmit={handleSave} className="mt-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {[
-                { name: "fullName", label: "Full Name", type: "text", value: formData.fullName },
-                { name: "email", label: "Email", type: "email", value: formData.email },
-                { name: "phone", label: "Phone", type: "tel", value: formData.phone },
-                { name: "bloodGroup", label: "Blood Group", type: "text", value: formData.bloodGroup, disabled: true },
-                { name: "dateOfBirth", label: "Date of Birth", type: "date", value: formData.dateOfBirth },
-                { name: "gender", label: "Gender", type: "select", value: formData.gender, options: ["Male", "Female", "Other"] },
-                { name: "location", label: "Location", type: "text", value: formData.location },
-                { name: "address", label: "Address", type: "text", value: formData.address },
-                { name: "emergencyContact", label: "Emergency Contact", type: "tel", value: formData.emergencyContact },
-              ].map((field) => (
-                <div key={field.name} className={field.name === "address" || field.name === "emergencyContact" ? "sm:col-span-2" : ""}>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">{field.label}</label>
-                  {field.type === "select" ? (
-                    <select
-                      name={field.name}
-                      value={field.value}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF] disabled:bg-slate-50 disabled:text-slate-500"
-                    >
-                      {field.options.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type}
-                      name={field.name}
-                      value={field.value}
-                      onChange={handleChange}
-                      disabled={!isEditing || field.disabled}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF] disabled:bg-slate-50 disabled:text-slate-500"
-                    />
-                  )}
+            <p className="text-sm leading-6 text-slate-500">
+              Proud to be a blood donor. I believe small acts of kindness can
+              create a big difference.
+            </p>
+
+            <div className="mt-6 space-y-1">
+
+              <InfoRow
+                icon={<Droplet size={16} />}
+                label="Blood Group"
+                value={formData.bloodGroup}
+                highlight
+              />
+
+              <InfoRow
+                icon={<UserRound size={16} />}
+                label="Gender"
+                value={formData.gender}
+              />
+
+              <InfoRow
+                icon={<CalendarDays size={16} />}
+                label="Date of Birth"
+                value={formatDate(formData.dateOfBirth)}
+              />
+
+              <InfoRow
+                icon={<MapPin size={16} />}
+                label="Location"
+                value={`${formData.location}, Bangladesh`}
+              />
+
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-gradient-to-br from-[#FFF0F2] to-[#FDECEF] p-5">
+
+              <div className="flex items-center justify-between">
+
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Blood Type
+                  </p>
+
+                  <p className="mt-1 text-3xl font-black text-[#D62839]">
+                    {formData.bloodGroup}
+                  </p>
                 </div>
-              ))}
+
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#D62839] shadow-sm">
+                  <Droplet
+                    size={24}
+                    fill="currentColor"
+                  />
+                </div>
+
+              </div>
+
             </div>
 
-            {isEditing && (
-              <div className="mt-5 flex items-center justify-end gap-3">
+          </section>
+
+          {/* ===================================================
+              PERSONAL INFORMATION
+          ==================================================== */}
+
+          <section className="rounded-[22px] border border-slate-200/80 bg-white p-6 shadow-[0_5px_25px_rgba(15,23,42,0.04)]">
+
+            <div className="mb-6 flex items-center justify-between gap-4">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+                  <UserRound size={19} />
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900">
+                    Personal Information
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Update your profile details
+                  </p>
+                </div>
+
+              </div>
+
+              {isEditing && (
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50"
                 >
-                  Cancel
+                  <X size={17} />
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#A4161A]"
-                >
-                  Save Changes
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
-      </div>
+              )}
 
-      {/* Change Password */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-slate-900">Change Password</h3>
-        <p className="mt-1 text-xs text-slate-500">Update your account password</p>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Current Password</label>
-            <input
-              type={showPassword ? "text" : "password"}
+            </div>
+
+            <form id="profile-form" onSubmit={handleSave}>
+
+              <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+
+                <ProfileField
+                  name="fullName"
+                  label="Full Name"
+                  type="text"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <ProfileField
+                  name="email"
+                  label="Email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <ProfileField
+                  name="phone"
+                  label="Phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <ProfileField
+                  name="bloodGroup"
+                  label="Blood Group"
+                  type="text"
+                  value={formData.bloodGroup}
+                  onChange={handleChange}
+                  disabled
+                />
+
+                <ProfileField
+                  name="dateOfBirth"
+                  label="Date of Birth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <div>
+
+                  <label className="mb-2 block text-xs font-bold text-slate-600">
+                    Gender
+                  </label>
+
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-medium text-slate-700 outline-none transition focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#FDECEF] disabled:cursor-not-allowed disabled:text-slate-500"
+                  >
+                    <option value="Male">
+                      Male
+                    </option>
+
+                    <option value="Female">
+                      Female
+                    </option>
+
+                    <option value="Other">
+                      Other
+                    </option>
+                  </select>
+
+                </div>
+
+                <ProfileField
+                  name="location"
+                  label="Location"
+                  type="text"
+                  value={formData.location}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <ProfileField
+                  name="emergencyContact"
+                  label="Emergency Contact"
+                  type="tel"
+                  value={formData.emergencyContact}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
+
+                <div className="sm:col-span-2">
+
+                  <ProfileField
+                    name="address"
+                    label="Address"
+                    type="text"
+                    value={formData.address}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                  />
+
+                </div>
+
+              </div>
+
+              {/* {isEditing && (
+                <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
+
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    form="profile-form"
+                    className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A]"
+                  >
+                    Save Changes
+                  </button>
+
+                </div>
+              )} */}
+
+            </form>
+
+          </section>
+
+          {/* ===================================================
+              RIGHT COLUMN
+          ==================================================== */}
+
+          <div className="space-y-5">
+
+            {/* Donation Activity */}
+
+            <section className="rounded-[22px] border border-slate-200/80 bg-white p-6 shadow-[0_5px_25px_rgba(15,23,42,0.04)]">
+
+              <div className="mb-5 flex items-center justify-between">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+                    <CalendarDays size={18} />
+                  </div>
+
+                  <div>
+
+                    <h2 className="text-sm font-extrabold text-slate-900">
+                      Donation Activity
+                    </h2>
+
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Your recent donations
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                >
+                  View All
+                </button>
+
+              </div>
+
+              <div className="space-y-1">
+
+                <DonationItem
+                  date="Jul 15, 2025"
+                  type="Whole Blood Donation"
+                />
+
+                <DonationItem
+                  date="Mar 10, 2025"
+                  type="Whole Blood Donation"
+                />
+
+                <DonationItem
+                  date="Nov 18, 2024"
+                  type="Whole Blood Donation"
+                />
+
+              </div>
+
+            </section>
+
+            {/* Achievement */}
+
+            <section className="rounded-[22px] border border-slate-200/80 bg-white p-6 shadow-[0_5px_25px_rgba(15,23,42,0.04)]">
+
+              <div className="mb-5 flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF5DD] text-amber-600">
+                  <Award size={19} />
+                </div>
+
+                <div>
+
+                  <h2 className="text-sm font-extrabold text-slate-900">
+                    Achievements
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Your donation milestones
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div className="flex items-center gap-4 rounded-2xl bg-slate-50 p-4">
+
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md">
+                  <Award size={28} />
+                </div>
+
+                <div>
+
+                  <p className="text-sm font-extrabold text-slate-900">
+                    Life Saver
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Donated blood 10+ times
+                  </p>
+
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                    Earned Jul 15, 2025
+                  </p>
+
+                </div>
+
+              </div>
+
+            </section>
+
+          </div>
+
+        </div>
+
+        {/* =====================================================
+            CHANGE PASSWORD
+        ====================================================== */}
+
+        <section className="rounded-[22px] border border-slate-200/80 bg-white p-6 shadow-[0_5px_25px_rgba(15,23,42,0.04)]">
+
+          <div className="mb-6 flex items-center gap-3">
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+              <Lock size={18} />
+            </div>
+
+            <div>
+
+              <h2 className="text-sm font-extrabold text-slate-900">
+                Change Password
+              </h2>
+
+              <p className="mt-0.5 text-xs text-slate-400">
+                Update your account password
+              </p>
+
+            </div>
+
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
+
+            <PasswordField
+              label="Current Password"
               name="current"
               value={passwordData.current}
               onChange={handlePasswordChange}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
+              showPassword={showPassword}
             />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">New Password</label>
-            <input
-              type={showPassword ? "text" : "password"}
+
+            <PasswordField
+              label="New Password"
               name="newPassword"
               value={passwordData.newPassword}
               onChange={handlePasswordChange}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
+              showPassword={showPassword}
             />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Confirm Password</label>
-            <input
-              type={showPassword ? "text" : "password"}
+
+            <PasswordField
+              label="Confirm Password"
               name="confirm"
               value={passwordData.confirm}
               onChange={handlePasswordChange}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
+              showPassword={showPassword}
             />
+
+            <div className="flex items-end">
+
+              <button
+                type="button"
+                className="h-11 w-full rounded-xl bg-[#D62839] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A] lg:w-auto"
+              >
+                Update Password
+              </button>
+
+            </div>
+
           </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between">
-          <label className="flex items-center gap-2">
+
+          <label className="mt-4 inline-flex cursor-pointer items-center gap-2">
+
             <input
               type="checkbox"
               checked={showPassword}
-              onChange={(e) => setShowPassword(e.target.checked)}
+              onChange={(e) =>
+                setShowPassword(e.target.checked)
+              }
               className="h-4 w-4 rounded border-slate-300 text-[#D62839] focus:ring-[#D62839]"
             />
-            <span className="text-xs font-medium text-slate-600">Show passwords</span>
+
+            <span className="text-xs font-medium text-slate-500">
+              Show passwords
+            </span>
+
           </label>
-          <button
-            type="button"
-            className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#A4161A]"
-          >
-            Update Password
-          </button>
+
+        </section>
+
+        {/* Bottom branding */}
+
+        <div className="flex items-center justify-center gap-2 pb-2 pt-1 text-xs text-slate-400">
+
+          <Heart
+            size={13}
+            className="text-[#D62839]"
+            fill="currentColor"
+          />
+
+          <span>
+            Every donation counts —{" "}
+
+            <span className="font-semibold text-[#D62839]">
+              BloodBridge
+            </span>
+          </span>
+
         </div>
+
       </div>
     </div>
+  );
+}
+
+/* ============================================================
+   STAT COMPONENT
+============================================================ */
+
+function Stat({ icon, value, label }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FDECEF] text-[#D62839]">
+        {icon}
+      </div>
+
+      <div className="min-w-0">
+
+        <p className="truncate text-sm font-black text-slate-900">
+          {value}
+        </p>
+
+        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+          {label}
+        </p>
+
+      </div>
+
+    </div>
+  );
+}
+
+/* ============================================================
+   INFO ROW
+============================================================ */
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  highlight = false,
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-3 last:border-b-0">
+
+      <div className="flex min-w-0 items-center gap-3">
+
+        <span className="text-[#D62839]">
+          {icon}
+        </span>
+
+        <span className="text-xs font-semibold text-slate-500">
+          {label}
+        </span>
+
+      </div>
+
+      <span
+        className={`truncate text-right text-xs font-bold ${
+          highlight
+            ? "text-[#D62839]"
+            : "text-slate-700"
+        }`}
+      >
+        {value}
+      </span>
+
+    </div>
+  );
+}
+
+/* ============================================================
+   PROFILE FIELD
+============================================================ */
+
+function ProfileField({
+  name,
+  label,
+  type,
+  value,
+  onChange,
+  disabled,
+}) {
+  return (
+    <div>
+
+      <label className="mb-2 block text-xs font-bold text-slate-600">
+        {label}
+      </label>
+
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#FDECEF] disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+      />
+
+    </div>
+  );
+}
+
+/* ============================================================
+   DONATION ITEM
+============================================================ */
+
+function DonationItem({ date, type }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-slate-100 py-3.5 last:border-b-0">
+
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FDECEF] text-[#D62839]">
+        <Droplet
+          size={17}
+          fill="currentColor"
+        />
+      </div>
+
+      <div className="min-w-0 flex-1">
+
+        <p className="text-xs font-bold text-slate-700">
+          {date}
+        </p>
+
+        <p className="mt-0.5 truncate text-[11px] text-slate-400">
+          {type}
+        </p>
+
+      </div>
+
+      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-600">
+
+        <span className="flex items-center gap-1">
+
+          <CheckCircle2 size={11} />
+
+          Completed
+
+        </span>
+
+      </span>
+
+    </div>
+  );
+}
+
+/* ============================================================
+   PASSWORD FIELD
+============================================================ */
+
+function PasswordField({
+  label,
+  name,
+  value,
+  onChange,
+  showPassword,
+}) {
+  return (
+    <div>
+
+      <label className="mb-2 block text-xs font-bold text-slate-600">
+        {label}
+      </label>
+
+      <input
+        type={showPassword ? "text" : "password"}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={`Enter ${label.toLowerCase()}`}
+        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#D62839] focus:ring-4 focus:ring-[#FDECEF]"
+      />
+
+    </div>
+  );
+}
+
+/* ============================================================
+   DATE FORMATTER
+============================================================ */
+
+function formatDate(date) {
+  if (!date) return "";
+
+  return new Date(date).toLocaleDateString(
+    "en-GB",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }
   );
 }

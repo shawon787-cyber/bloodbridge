@@ -13,6 +13,7 @@ import {
   Droplet,
 } from "lucide-react";
 import { signOut, useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 const navLinks = [
   {
@@ -34,12 +35,19 @@ const navLinks = [
 ];
 
 const Navbar = () => {
+  const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const { data:session, isPending } =useSession();
   // console.log("Session data:", session, "Is pending:", isPending);
   const user = session?.user;
+  const profilePath =
+  user?.role === "admin"
+    ? "/admin/profile"
+    : user?.role === "volunteer"
+      ? "/volunteer/profile"
+      : "/dashboard/profile";
 
   // Replace this with your real authentication state
   const isLoggedIn = !!session?.user;
@@ -171,7 +179,7 @@ const Navbar = () => {
                   </Link>
 
                   <Link
-                    href="/dashboard/profile"
+                    href={profilePath}
                     className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#D62839]"
                   >
                     <UserRound size={17} />
@@ -262,7 +270,7 @@ const Navbar = () => {
               </Link>
 
               <Link
-                href="/dashboard/profile"
+                href={profilePath}
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
               >

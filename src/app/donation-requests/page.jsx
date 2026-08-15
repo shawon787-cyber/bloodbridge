@@ -42,7 +42,7 @@ export default function DonationRequestsPage() {
     <main>
       <DonationRequestHero />
 
-      <div className="relative bg-[#FFF9FA] py-16 sm:py-20 lg:py-24">
+      <div className="relative bg-[#FFF9FA] pb-12">
 
         <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-[#FDECEF] blur-3xl" />
 
