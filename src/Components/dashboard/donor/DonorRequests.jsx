@@ -1,296 +1,463 @@
 "use client";
 
-import { useState } from "react";
-import PageHeader from "@/Components/dashboard/shared/PageHeader";
-import SearchFilter from "@/Components/dashboard/shared/SearchFilter";
-import Modal from "@/Components/dashboard/shared/Modal";
-import EmptyState from "@/Components/dashboard/shared/EmptyState";
-import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useDonationRequests } from "@/context/DonationRequestContext";
+import { useSession } from "@/lib/auth-client";
 import {
-  Search,
-  Droplets,
+  Plus,
+  ClipboardList,
   MapPin,
   Calendar,
-  AlertTriangle,
-  User,
+  Droplets,
+  Clock3,
+  Users,
+  Eye,
+  Pencil,
+  Trash2,
+  ChevronRight,
 } from "lucide-react";
-import { mockBloodRequests } from "@/data/mockData";
 
-const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const URGENCY_LEVELS = ["Urgent", "High", "Medium", "Low"];
-const LOCATIONS = ["Dhaka", "Chattogram", "Rajshahi", "Khulna", "Sylhet", "Mymensingh"];
+import PageHeader from "@/Components/dashboard/shared/PageHeader";
+import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
+import EmptyState from "@/Components/dashboard/shared/EmptyState";
 
-export default function DonorRequests() {
-  const [search, setSearch] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
-  const [location, setLocation] = useState("");
-  const [urgency, setUrgency] = useState("");
-  const [date, setDate] = useState("");
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmId, setConfirmId] = useState(null);
+const statusTabs = [
+  { label: "All", value: "All" },
+  { label: "Pending", value: "Pending" },
+  { label: "In Progress", value: "In Progress" },
+  { label: "Done", value: "Done" },
+  { label: "Cancelled", value: "Cancelled" },
+];
 
-  const filtered = mockBloodRequests.filter((req) => {
-    const matchSearch =
-      !search ||
-      req.hospital.toLowerCase().includes(search.toLowerCase()) ||
-      req.patient.toLowerCase().includes(search.toLowerCase()) ||
-      req.id.toLowerCase().includes(search.toLowerCase());
-    const matchBlood = !bloodGroup || req.bloodGroup === bloodGroup;
-    const matchLocation = !location || req.location === location;
-    const matchUrgency = !urgency || req.urgency === urgency;
-    const matchDate = !date || req.requiredDate >= date;
-    return matchSearch && matchBlood && matchLocation && matchUrgency && matchDate;
-  });
+export default function MyDonationRequests() {
+  const [activeTab, setActiveTab] = useState("All");
+  const { requests, isInitialized } = useDonationRequests();
+  const { data: session, isPending: sessionPending } = useSession();
 
-  const handleDonateClick = (req) => {
-    setConfirmId(req.id);
-    setShowConfirm(true);
-  };
+  const currentUserEmail = session?.user?.email?.toLowerCase();
 
-  const confirmDonate = () => {
-    setShowConfirm(false);
-    setConfirmId(null);
-  };
+  const myDonationRequests = useMemo(() => {
+    if (!currentUserEmail) return [];
 
-  const urgencyColor = (u) => {
-    switch (u) {
-      case "Urgent":
-        return "bg-red-50 text-red-600";
-      case "High":
-        return "bg-orange-50 text-orange-600";
-      case "Medium":
-        return "bg-amber-50 text-amber-600";
+    return requests.filter((req) => {
+      const requesterEmail = (req.requesterEmail || "").toLowerCase();
+      return requesterEmail === currentUserEmail;
+    });
+  }, [requests, currentUserEmail]);
+
+  const filteredRequests = useMemo(() => {
+    if (activeTab === "All") {
+      return myDonationRequests;
+    }
+
+    return myDonationRequests.filter(
+      (request) => request.status === activeTab
+    );
+  }, [activeTab, myDonationRequests]);
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case "Pending":
+        return "bg-amber-50 text-amber-700 border-amber-100";
+
+      case "In Progress":
+        return "bg-blue-50 text-blue-700 border-blue-100";
+
+      case "Done":
+        return "bg-emerald-50 text-emerald-700 border-emerald-100";
+
+      case "Cancelled":
+        return "bg-red-50 text-red-600 border-red-100";
+
       default:
-        return "bg-slate-100 text-slate-600";
+        return "bg-slate-50 text-slate-600 border-slate-100";
     }
   };
 
+  const isLoading = sessionPending || !isInitialized;
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Blood Requests"
-        subtitle="Browse blood requests that match your blood type and location."
-      />
+      {/* ================= HEADER ================= */}
 
-      <SearchFilter
-        search={search}
-        onSearchChange={setSearch}
-        filters={{
-          bloodGroup,
-          location,
-          urgency,
-          date,
-        }}
-        onFilterChange={(key, value) => {
-          if (key === "bloodGroup") setBloodGroup(value);
-          if (key === "location") setLocation(value);
-          if (key === "urgency") setUrgency(value);
-          if (key === "date") setDate(value);
-        }}
-        onClear={() => {
-          setSearch("");
-          setBloodGroup("");
-          setLocation("");
-          setUrgency("");
-          setDate("");
-        }}
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select
-            value={bloodGroup}
-            onChange={(e) => setBloodGroup(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
-          >
-            <option value="">All Blood Groups</option>
-            {BLOOD_GROUPS.map((bg) => (
-              <option key={bg} value={bg}>{bg}</option>
-            ))}
-          </select>
-          <select
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
-          >
-            <option value="">All Locations</option>
-            {LOCATIONS.map((loc) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
-          <select
-            value={urgency}
-            onChange={(e) => setUrgency(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
-          >
-            <option value="">All Urgency Levels</option>
-            {URGENCY_LEVELS.map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 transition-all focus:border-[#D62839] focus:outline-none focus:ring-2 focus:ring-[#FDECEF]"
-          />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <PageHeader
+          title="My Donation Requests"
+          subtitle="Track and manage every blood request you have created."
+        />
+
+        <Link
+          href="/dashboard/create-request"
+          className="
+            inline-flex w-fit items-center justify-center gap-2
+            rounded-xl bg-[#D62839]
+            px-4 py-2.5
+            text-sm font-semibold text-white
+            shadow-sm
+            transition-all
+            hover:bg-[#A4161A]
+            hover:shadow-md
+          "
+        >
+          <Plus size={17} strokeWidth={2.5} />
+          New Request
+        </Link>
+      </div>
+
+      {/* ================= STATUS FILTER ================= */}
+
+      <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-xl bg-[#F6F8FA] p-1">
+        {statusTabs.map((tab) => {
+          const isActive = activeTab === tab.value;
+
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setActiveTab(tab.value)}
+              className={`
+                whitespace-nowrap rounded-lg
+                px-3.5 py-2
+                text-xs font-semibold
+                transition-all
+                ${
+                  isActive
+                    ? "bg-white text-[#111827] shadow-sm"
+                    : "text-slate-500 hover:text-[#D62839]"
+                }
+              `}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ================= REQUESTS ================= */}
+
+      {isLoading ? (
+        <div className="flex min-h-[290px] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
         </div>
-      </SearchFilter>
-
-      {filtered.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <EmptyState
-            icon={Search}
-            title="No requests found"
-            description="Try adjusting your filters to find more blood requests."
-            action={
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setBloodGroup("");
-                  setLocation("");
-                  setUrgency("");
-                  setDate("");
-                }}
-                className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#A4161A]"
-              >
-                Clear Filters
-              </button>
-            }
-          />
+          <div className="flex min-h-[290px] items-center justify-center p-6">
+            <div className="w-full max-w-md text-center">
+              {/* Icon */}
+
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FDECEF]">
+                <ClipboardList
+                  size={25}
+                  strokeWidth={2}
+                  className="text-[#D62839]"
+                />
+              </div>
+
+              {/* Text */}
+
+              <h3 className="mt-5 text-base font-bold text-slate-900">
+                {activeTab === "All"
+                  ? "No donation requests yet."
+                  : `No ${activeTab.toLowerCase()} requests.`}
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                {activeTab === "All"
+                  ? "Requests you create will appear here with their current status."
+                  : `You don't have any ${activeTab.toLowerCase()} donation requests right now.`}
+              </p>
+
+              {/* Create Button */}
+
+              {activeTab === "All" && (
+                <Link
+                  href="/dashboard/create-request"
+                  className="
+                    mt-5 inline-flex items-center gap-2
+                    rounded-xl
+                    bg-[#D62839]
+                    px-4 py-2.5
+                    text-sm font-semibold text-white
+                    shadow-sm
+                    transition-all
+                    hover:bg-[#A4161A]
+                    hover:shadow-md
+                  "
+                >
+                  <Plus size={17} strokeWidth={2.5} />
+                  Create Donation Request
+                </Link>
+              )}
+
+              {activeTab !== "All" && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("All")}
+                  className="
+                    mt-5 rounded-xl
+                    border border-slate-200
+                    px-4 py-2.5
+                    text-sm font-semibold text-slate-700
+                    transition-colors
+                    hover:border-[#D62839]
+                    hover:text-[#D62839]
+                  "
+                >
+                  View All Requests
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((req) => (
+        <div className="space-y-4">
+          {filteredRequests.map((request) => (
             <div
-              key={req.id}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              key={request.id}
+              className="
+                overflow-hidden
+                rounded-2xl
+                border border-slate-200
+                bg-white
+                shadow-sm
+                transition-shadow
+                hover:shadow-md
+              "
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-sm font-black text-[#D62839]">
-                    {req.bloodGroup}
+              {/* ================= CARD TOP ================= */}
+
+              <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-4">
+                  {/* Blood Group */}
+
+                  <div
+                    className="
+                      flex h-12 w-12 shrink-0
+                      items-center justify-center
+                      rounded-xl
+                      bg-[#FDECEF]
+                      text-sm font-black
+                      text-[#D62839]
+                    "
+                  >
+                    {request.bloodGroup}
                   </div>
+
+                  {/* Request Info */}
+
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{req.id}</p>
-                    <StatusBadge status={req.urgency} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-900">
+                        {request.recipientName}
+                      </h3>
+
+                      <span className="text-xs text-slate-400">
+                        #{request.id}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <MapPin size={13} />
+                        {request.address}
+                      </span>
+
+                      <span className="flex items-center gap-1">
+                        <Calendar size={13} />
+                        {request.donationDate}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${urgencyColor(req.urgency)}`}>
-                  {req.urgency}
+
+                {/* Status */}
+
+                <span
+                  className={`
+                    inline-flex w-fit items-center rounded-full
+                    border px-3 py-1
+                    text-[11px] font-bold
+                    ${getStatusStyle(request.status)}
+                  `}
+                >
+                  {request.status}
                 </span>
               </div>
 
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <User size={14} className="shrink-0 text-[#D62839]" />
-                  <span className="font-medium text-slate-700">Patient:</span> {req.patient}
+              {/* ================= DETAILS ================= */}
+
+              <div className="grid grid-cols-2 border-y border-slate-100 bg-slate-50/40 sm:grid-cols-4">
+                <div className="border-r border-slate-100 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <Droplets
+                      size={15}
+                      className="text-[#D62839]"
+                    />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      Blood Group
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    {request.bloodGroup}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <MapPin size={14} className="shrink-0 text-[#D62839]" />
-                  <span className="font-medium text-slate-700">Hospital:</span> {req.hospital}
+
+                <div className="border-b border-r border-slate-100 px-5 py-4 sm:border-b-0">
+                  <div className="flex items-center gap-2">
+                    <Droplets
+                      size={15}
+                      className="text-[#D62839]"
+                    />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      Units Required
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    {request.units} units
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Droplets size={14} className="shrink-0 text-[#D62839]" />
-                  <span className="font-medium text-slate-700">Units:</span> {req.units}
+
+                <div className="border-r border-slate-100 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <Clock3
+                      size={15}
+                      className="text-[#D62839]"
+                    />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      Required Time
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    {request.donationTime}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Calendar size={14} className="shrink-0 text-[#D62839]" />
-                  <span className="font-medium text-slate-700">Required:</span> {req.requiredDate}
+
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <Users
+                      size={15}
+                      className="text-[#D62839]"
+                    />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      Donors
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    {request.units} units needed
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRequest(req)}
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-[#D62839] hover:text-[#D62839]"
-                >
-                  View Details
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDonateClick(req)}
-                  disabled={req.status === "Fulfilled" || req.status === "Cancelled"}
-                  className="flex-1 rounded-xl bg-[#D62839] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#A4161A] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  I Can Donate
-                </button>
+              {/* ================= FOOTER ================= */}
+
+              <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`
+                      rounded-lg px-2.5 py-1
+                      text-[10px] font-bold
+                      ${
+                        request.urgency === "Urgent"
+                          ? "bg-red-50 text-red-600"
+                          : request.urgency === "High"
+                          ? "bg-orange-50 text-orange-600"
+                          : "bg-amber-50 text-amber-600"
+                      }
+                    `}
+                  >
+                    {request.urgency}
+                  </span>
+
+                  <span className="text-xs text-slate-400">
+                    Created {new Date(request.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* View */}
+
+                  <button
+                    type="button"
+                    className="
+                      inline-flex items-center gap-1.5
+                      rounded-lg
+                      border border-slate-200
+                      px-3 py-2
+                      text-xs font-semibold text-slate-600
+                      transition-colors
+                      hover:border-[#D62839]
+                      hover:text-[#D62839]
+                    "
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+
+                  {/* Edit */}
+
+                  {request.status !== "Done" &&
+                    request.status !== "Cancelled" && (
+                      <button
+                        type="button"
+                        className="
+                          inline-flex items-center gap-1.5
+                          rounded-lg
+                          border border-slate-200
+                          px-3 py-2
+                          text-xs font-semibold text-slate-600
+                          transition-colors
+                          hover:border-[#D62839]
+                          hover:text-[#D62839]
+                        "
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                    )}
+
+                  {/* Delete */}
+
+                  <button
+                    type="button"
+                    className="
+                      inline-flex items-center justify-center
+                      rounded-lg
+                      border border-slate-200
+                      p-2
+                      text-slate-400
+                      transition-colors
+                      hover:border-red-200
+                      hover:bg-red-50
+                      hover:text-red-600
+                    "
+                  >
+                    <Trash2 size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="
+                      rounded-lg
+                      p-2
+                      text-slate-400
+                      transition-colors
+                      hover:bg-[#FFF4F5]
+                      hover:text-[#D62839]
+                    "
+                  >
+                    <ChevronRight size={17} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Request Details Modal */}
-      <Modal isOpen={!!selectedRequest} onClose={() => setSelectedRequest(null)} title="Blood Request Details" width="max-w-lg">
-        {selectedRequest && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FDECEF] text-lg font-black text-[#D62839]">
-                {selectedRequest.bloodGroup}
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900">{selectedRequest.id}</p>
-                <StatusBadge status={selectedRequest.status} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              {[
-                { label: "Patient", value: selectedRequest.patient },
-                { label: "Hospital", value: selectedRequest.hospital },
-                { label: "Location", value: selectedRequest.location },
-                { label: "Blood Group", value: selectedRequest.bloodGroup },
-                { label: "Units Required", value: selectedRequest.units },
-                { label: "Required Date", value: selectedRequest.requiredDate },
-                { label: "Urgency", value: selectedRequest.urgency },
-                { label: "Contact", value: selectedRequest.contact },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
-                  <span className="text-xs font-medium text-slate-500">{item.label}</span>
-                  <span className="text-xs font-bold text-slate-900">{item.value}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-slate-500">{selectedRequest.description}</p>
-            <button
-              type="button"
-              onClick={() => setSelectedRequest(null)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Close
-            </button>
-          </div>
-        )}
-      </Modal>
-
-      {/* Confirmation Modal */}
-      <Modal isOpen={showConfirm} onClose={() => setShowConfirm(false)} title="Confirm Donation" width="max-w-md">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 rounded-xl bg-[#FDECEF] p-4">
-            <AlertTriangle size={24} className="shrink-0 text-[#D62839]" />
-            <p className="text-sm font-medium text-slate-700">
-              Are you sure you want to donate for request <span className="font-bold text-[#D62839]">#{confirmId}</span>? This is a frontend confirmation only.
-            </p>
-          </div>
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setShowConfirm(false)}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDonate}
-              className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#A4161A]"
-            >
-              Confirm Donation
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

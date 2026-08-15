@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -7,44 +10,32 @@ import {
   MapPin,
 } from "lucide-react";
 import RequestCard from "@/Components/shared/RequestCard";
-
-const requests = [
-  {
-    id: "BB-1024",
-    bloodGroup: "O+",
-    name: "Md. Rakib Hasan",
-    location: "Dhanmondi, Dhaka",
-    hospital: "Dhaka Medical College Hospital",
-    units: "2 units required",
-    date: "Aug 12, 2026",
-    time: "10:30 AM",
-    status: "Urgent",
-  },
-  {
-    id: "BB-1023",
-    bloodGroup: "A+",
-    name: "Ayesha Siddiqua",
-    location: "Pahartali, Chattogram",
-    hospital: "Chattogram Medical College",
-    units: "1 unit required",
-    date: "Aug 13, 2026",
-    time: "02:00 PM",
-    status: "Active",
-  },
-  {
-    id: "BB-1021",
-    bloodGroup: "AB+",
-    name: "Shirin Akter",
-    location: "Paba, Rajshahi",
-    hospital: "Rajshahi Medical College Hospital",
-    units: "2 units required",
-    date: "Aug 16, 2026",
-    time: "11:15 AM",
-    status: "Active",
-  },
-];
+import { useDonationRequests } from "@/context/DonationRequestContext";
 
 const BloodRequestsSection = () => {
+  const { requests, isInitialized } = useDonationRequests();
+
+  const latestRequests = useMemo(() => {
+    return [...requests]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+      )
+      .slice(0, 3)
+      .map((req) => ({
+        id: req.id,
+        bloodGroup: req.bloodGroup,
+        name: req.recipientName || req.name,
+        location: req.address || req.location,
+        hospital: req.hospitalName || req.hospital,
+        units: req.units,
+        date: req.donationDate || req.date,
+        time: req.donationTime || req.time,
+        status: req.status,
+      }));
+  }, [requests]);
+
   return (
     <section className="relative overflow-hidden bg-[#FFF9FA] py-16 sm:py-20 lg:py-24">
 
@@ -107,16 +98,22 @@ const BloodRequestsSection = () => {
 
         {/* ================= REQUEST CARDS ================= */}
 
-        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {!isInitialized ? (
+          <div className="mt-10 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
+          </div>
+        ) : (
+          <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
 
-          {requests.map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-            />
-          ))}
+            {latestRequests.map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+              />
+            ))}
 
-        </div>
+          </div>
+        )}
 
 
         {/* ================= BOTTOM ================= */}

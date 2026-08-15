@@ -8,7 +8,17 @@ import {
 } from "lucide-react";
 
 const RequestCard = ({ request }) => {
-  const isUrgent = request.status === "Urgent";
+  const status = request.status;
+  const isUrgent = status === "Urgent";
+
+  const id = request.id;
+  const bloodGroup = request.bloodGroup;
+  const name = request.recipientName || request.name || "";
+  const location = request.address || request.location || "";
+  const hospital = request.hospitalName || request.hospital || "";
+  const date = request.donationDate || request.date || "";
+  const time = request.donationTime || request.time || "";
+  const units = request.units || "";
 
   return (
     <div className="group relative overflow-hidden rounded-[24px] border border-[#F0DDDF] bg-white shadow-[0_8px_30px_rgba(185,28,28,0.045)] transition-all duration-300 hover:-translate-y-1 hover:border-[#E8BBC1] hover:shadow-[0_18px_40px_rgba(185,28,28,0.10)]">
@@ -38,11 +48,11 @@ const RequestCard = ({ request }) => {
               }`}
             />
 
-            {request.status}
+             {status}
           </span>
 
           <span className="text-[9px] font-medium text-[#A0A0A0]">
-            #{request.id}
+             #{id}
           </span>
 
         </div>
@@ -55,14 +65,14 @@ const RequestCard = ({ request }) => {
           {/* Blood Badge */}
 
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-lg font-black text-[#D62839] shadow-[0_8px_20px_rgba(185,28,28,0.10)] ring-1 ring-[#F4E1E3] transition-transform duration-300 group-hover:scale-105">
-            {request.bloodGroup}
+             {bloodGroup}
           </div>
 
 
           <div className="min-w-0">
 
             <h3 className="truncate text-base font-extrabold text-[#171717]">
-              {request.name}
+              {name}
             </h3>
 
             <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#A0A0A0]">
@@ -94,7 +104,7 @@ const RequestCard = ({ request }) => {
             </p>
 
             <p className="mt-0.5 truncate text-xs font-semibold text-[#444444]">
-              {request.location}
+               {location}
             </p>
 
           </div>
@@ -117,7 +127,7 @@ const RequestCard = ({ request }) => {
             </p>
 
             <p className="mt-0.5 truncate text-xs font-semibold text-[#444444]">
-              {request.hospital}
+               {hospital}
             </p>
 
           </div>
@@ -137,7 +147,7 @@ const RequestCard = ({ request }) => {
             />
 
             <span className="text-[10px] font-semibold text-[#555555]">
-              {request.date}
+               {date}
             </span>
 
           </div>
@@ -150,7 +160,7 @@ const RequestCard = ({ request }) => {
             />
 
             <span className="text-[10px] font-semibold text-[#555555]">
-              {request.time}
+               {time}
             </span>
 
           </div>
@@ -163,7 +173,7 @@ const RequestCard = ({ request }) => {
         <div className="mt-3 flex items-center justify-between">
 
           <span className="text-xs font-bold text-[#333333]">
-            {request.units}
+            {units}
           </span>
 
           <span className="text-[9px] text-[#999999]">
@@ -176,7 +186,7 @@ const RequestCard = ({ request }) => {
         {/* CTA */}
 
         <Link
-          href={`/donation-requests/${request.id}`}
+          href={`/donation-requests/${id}`}
           className="group/button mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D62839] py-3 text-xs font-bold text-white transition-all duration-300 hover:bg-[#B91C2C] hover:shadow-[0_8px_20px_rgba(214,40,57,0.20)]"
         >
           View Request

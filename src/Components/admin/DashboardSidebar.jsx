@@ -84,13 +84,13 @@ const menuItems = {
       icon: UserRound,
     },
     {
-      label: "Blood Requests",
-      href: "/dashboard/requests",
+      label: "My Donation Requests",
+      href: "/dashboard/my-donation-requests",
       icon: Droplets,
     },
     {
-      label: "Donation History",
-      href: "/dashboard/history",
+      label: "Create Donation Request",
+      href: "/dashboard/create-donation-request",
       icon: History,
     },
     {

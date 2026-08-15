@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   Droplets,
@@ -10,10 +10,13 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  Phone,
+  UserPlus,
 } from "lucide-react";
 
 import districtsData from "@/data/districts.json";
 import upazilasData from "@/data/upazilas.json";
+import { useDonors } from "@/context/DonorContext";
 
 const districts = districtsData[2]?.data || [];
 const upazilas = upazilasData[2]?.data || [];
@@ -35,19 +38,13 @@ const SearchDonorsPage = () => {
   const [upazila, setUpazila] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
 
-  // ============================================
-  // SELECTED DISTRICT
-  // ============================================
+  const { donors, isInitialized } = useDonors();
 
   const selectedDistrict = useMemo(() => {
     return districts.find(
       (item) => String(item.id) === String(district)
     );
   }, [district]);
-
-  // ============================================
-  // FILTER UPAZILAS
-  // ============================================
 
   const filteredUpazilas = useMemo(() => {
     if (!district) return [];
@@ -58,24 +55,27 @@ const SearchDonorsPage = () => {
     );
   }, [district]);
 
-  // ============================================
-  // DISTRICT CHANGE
-  // ============================================
-
   const handleDistrictChange = (e) => {
     setDistrict(e.target.value);
     setUpazila("");
     setHasSearched(false);
   };
 
-  // ============================================
-  // SEARCH
-  // ============================================
-
   const handleSearch = (e) => {
     e.preventDefault();
     setHasSearched(true);
   };
+
+  const matchedDonors = useMemo(() => {
+    if (!hasSearched || !isInitialized) return [];
+
+    return donors.filter((donor) => {
+      const matchesBlood = !bloodGroup || donor.bloodGroup === bloodGroup;
+      const matchesDistrict = !district || donor.location === selectedDistrict?.name || donor.district === district;
+      const matchesUpazila = !upazila || donor.upazila === upazila;
+      return matchesBlood && matchesDistrict && matchesUpazila;
+    });
+  }, [bloodGroup, district, upazila, hasSearched, donors, isInitialized, selectedDistrict]);
 
   return (
     <main className="min-h-screen bg-[#FFF9FA]">
@@ -364,7 +364,7 @@ const SearchDonorsPage = () => {
 
                 <button
                   type="submit"
-                  className="group relative flex h-12 items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D40] px-7 text-sm font-bold text-white shadow-[0_10px_25px_rgba(214,40,57,0.23)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(214,40,57,0.28)] active:translate-y-0 active:scale-[0.98]"
+                  className="group relative flex h-12 items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] px-7 text-sm font-bold text-white shadow-[0_10px_25px_rgba(214,40,57,0.23)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(214,40,57,0.28)] active:translate-y-0 active:scale-[0.98]"
                 >
 
                   <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -473,14 +473,7 @@ const SearchDonorsPage = () => {
             </div>
 
           ) : (
-
-            /* =================================================
-                SEARCH RESULT STATE
-            ================================================== */
-
             <div className="relative overflow-hidden rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.05)] sm:p-7">
-
-              {/* Top line */}
 
               <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[#D62839]/50 to-transparent" />
 
@@ -539,30 +532,89 @@ const SearchDonorsPage = () => {
 
               </div>
 
-              {/* Result Area */}
+              {!isInitialized ? (
+                <div className="mt-7 flex min-h-[210px] items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
+                </div>
+              ) : matchedDonors.length === 0 ? (
+                <div className="mt-7 flex min-h-[210px] items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white">
 
-              <div className="mt-7 flex min-h-[210px] items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+                  <div className="text-center">
 
-                <div className="text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-300 shadow-sm">
+                      <UsersRound size={25} />
+                    </div>
 
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-300 shadow-sm">
-                    <UsersRound size={25} />
+                    <p className="mt-4 text-sm font-bold text-slate-500">
+                      No donor results available yet
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      Connect your donor collection or API here.
+                    </p>
+
                   </div>
 
-                  <p className="mt-4 text-sm font-bold text-slate-500">
-                    No donor results available yet
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-400">
-                    Connect your donor collection or API here.
-                  </p>
-
                 </div>
+              ) : (
+                <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {matchedDonors.map((donor) => (
+                    <div
+                      key={donor.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-lg font-black text-[#D62839]">
+                          {donor.bloodGroup}
+                        </div>
 
-              </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900">
+                            {donor.name}
+                          </p>
+
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#A0A0A0]">
+                            {donor.id}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2.5">
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                          <MapPin size={13} className="text-[#D62839]" />
+                          {donor.location}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                          <Phone size={13} className="text-[#D62839]" />
+                          {donor.phone}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                          <Droplets size={13} className="text-[#D62839]" />
+                          {donor.bloodGroup}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                          donor.availability === "Available"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {donor.availability}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400">
+                          Last donation: {new Date(donor.lastDonation).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
             </div>
-
           )}
 
         </div>
