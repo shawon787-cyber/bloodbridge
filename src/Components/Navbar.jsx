@@ -26,7 +26,7 @@ const navLinks = [
   },
   {
     label: "Search Donors",
-    href: "/search",
+    href: "/search-donors",
   },
   {
     label: "Funding",
