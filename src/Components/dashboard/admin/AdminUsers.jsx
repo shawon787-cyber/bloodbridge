@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   MoreHorizontal,
   Pencil,
@@ -13,7 +13,7 @@ import {
   Shield,
 } from "lucide-react";
 
-import { mockUsers } from "@/data/mockData";
+
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 import StatCard from "@/Components/dashboard/shared/StatCard";
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
@@ -22,7 +22,28 @@ import EmptyState from "@/Components/dashboard/shared/EmptyState";
 import Modal from "@/Components/dashboard/shared/Modal";
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState(mockUsers);
+  
+
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/admin/users"
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setUsers(result.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -637,23 +658,23 @@ export default function AdminUsers() {
               </button>
 
               {/* Edit */}
-              <button
+              {/* <button
                 type="button"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-bold text-[#64748B] transition-colors hover:border-[#D62839] hover:text-[#D62839]"
               >
                 <Pencil size={16} />
                 Edit
-              </button>
+              </button> */}
 
               {/* Delete */}
-              <button
+              {/* <button
                 type="button"
                 onClick={handleDeleteUser}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:border-red-400 hover:bg-red-50"
               >
                 <Trash2 size={16} />
                 Delete
-              </button>
+              </button> */}
 
             </div>
 

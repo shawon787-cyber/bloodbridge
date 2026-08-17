@@ -1,15 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Users,
   Droplets,
   WalletCards,
-  FileText,
   ArrowUpRight,
   ArrowDownRight,
   Activity,
-  UserPlus,
   Clock3,
   CheckCircle2,
   XCircle,
@@ -45,44 +43,135 @@ const bloodGroups = [
   { group: "O-", value: 175 },
 ];
 
-const recentUsers = [
-  {
-    name: "Arif Khan",
-    email: "arif@email.com",
-    role: "Donor",
-    joined: "2 hours ago",
-  },
-  {
-    name: "Sabina Yesmin",
-    email: "sabina@email.com",
-    role: "Volunteer",
-    joined: "5 hours ago",
-  },
-  {
-    name: "Jamal Mia",
-    email: "jamal@email.com",
-    role: "Donor",
-    joined: "1 day ago",
-  },
-  {
-    name: "Taslima Rahman",
-    email: "taslima@email.com",
-    role: "Volunteer",
-    joined: "2 days ago",
-  },
-];
+
+
+const getRelativeTime = (date) => {
+  if (!date) return "Unknown";
+
+  const created = new Date(date);
+  const now = new Date();
+
+  if (Number.isNaN(created.getTime())) {
+    return "Unknown";
+  }
+
+  const diffInSeconds = Math.floor(
+    (now.getTime() - created.getTime()) / 1000
+  );
+
+  if (diffInSeconds < 0) {
+    return "Just now";
+  }
+
+  if (diffInSeconds < 60) {
+    return "Just now";
+  }
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} ${
+      diffInMinutes === 1 ? "minute" : "minutes"
+    } ago`;
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+
+  if (diffInHours < 24) {
+    return `${diffInHours} ${
+      diffInHours === 1 ? "hour" : "hours"
+    } ago`;
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInDays < 30) {
+    return `${diffInDays} ${
+      diffInDays === 1 ? "day" : "days"
+    } ago`;
+  }
+
+  const diffInMonths = Math.floor(diffInDays / 30);
+
+  if (diffInMonths < 12) {
+    return `${diffInMonths} ${
+      diffInMonths === 1 ? "month" : "months"
+    } ago`;
+  }
+
+  const diffInYears = Math.floor(diffInDays / 365);
+
+  return `${diffInYears} ${
+    diffInYears === 1 ? "year" : "years"
+  } ago`;
+};
 
 /* =========================================================
    DASHBOARD COMPONENT
 ======================================================== */
 
 export default function AdminDashboard() {
+ const [recentUsers, setRecentUsers] = useState([]);
+const [usersLoading, setUsersLoading] = useState(true);
+ const [currentTime, setCurrentTime] = useState(Date.now());
+
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    setCurrentTime(Date.now());
+  }, 60000);
+
+  return () => clearInterval(interval);
+}, []);
+
+useEffect(() => {
+  const fetchRecentUsers = async () => {
+    try {
+      setUsersLoading(true);
+
+      const response = await fetch(
+        "http://localhost:5000/api/admin/users",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch users: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+
+      console.log("Admin users:", result);
+
+      if (result.success && Array.isArray(result.data)) {
+        setRecentUsers(result.data.slice(0, 4));
+      } else {
+        setRecentUsers([]);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to fetch recent users:",
+        error
+      );
+
+      setRecentUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  fetchRecentUsers();
+}, []);
   const { data: session } = useSession();
   const { requests } = useDonationRequests();
 
   const user = session?.user;
-  const userName = user?.name || "Admin";
-  const role = user?.role || "admin";
+  const userName = user?.name || "User";
+  const role = user?.role;
 
   const requestStats = getRequestStats(requests);
 
@@ -177,7 +266,7 @@ export default function AdminDashboard() {
 
         {/* Current Role */}
         <div className="mt-3 inline-flex items-center rounded-full bg-[#FDECEF] px-3 py-1 text-xs font-bold capitalize text-[#D62839]">
-          {role} Account
+          {user?.role} Account
         </div>
       </section>
 
@@ -677,7 +766,7 @@ export default function AdminDashboard() {
 
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-[#F1F5F9] md:grid-cols-2 md:divide-x md:divide-y-0">
+        {/* <div className="grid grid-cols-1 divide-y divide-[#F1F5F9] md:grid-cols-2 md:divide-x md:divide-y-0">
 
           {recentUsers.map((member) => (
             <div
@@ -706,11 +795,11 @@ export default function AdminDashboard() {
               <div className="text-right">
 
                 <span className="inline-flex rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[10px] font-bold text-[#475569]">
-                  {member.role}
+                  {member.role || "Unknown"}
                 </span>
 
                 <p className="mt-1 text-[10px] text-[#94A3B8]">
-                  {member.joined}
+                  {getRelativeTime(member.joined)}
                 </p>
 
               </div>
@@ -718,7 +807,80 @@ export default function AdminDashboard() {
             </div>
           ))}
 
+        </div> */}
+        <div className="grid grid-cols-1 divide-y divide-[#F1F5F9] md:grid-cols-2 md:divide-x md:divide-y-0">
+
+  {usersLoading ? (
+    Array.from({ length: 4 }).map((_, index) => (
+      <div
+        key={index}
+        className="flex items-center justify-between p-5 animate-pulse"
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-slate-200" />
+
+          <div>
+            <div className="h-3 w-28 rounded bg-slate-200" />
+            <div className="mt-2 h-2.5 w-40 rounded bg-slate-100" />
+          </div>
         </div>
+
+        <div className="flex flex-col items-end">
+          <div className="h-5 w-16 rounded-full bg-slate-200" />
+          <div className="mt-2 h-2.5 w-14 rounded bg-slate-100" />
+        </div>
+      </div>
+    ))
+  ) : recentUsers.length > 0 ? (
+    recentUsers.map((member) => (
+      <div
+        key={member.id}
+        className="flex items-center justify-between p-5 hover:bg-[#FFF7F8]"
+      >
+
+        {/* User Info */}
+        <div className="flex items-center gap-3">
+
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDECEF] text-sm font-black text-[#D62839]">
+            {member.name?.charAt(0)?.toUpperCase() || "U"}
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-[#111827]">
+              {member.name || "Unknown User"}
+            </p>
+
+            <p className="mt-0.5 text-xs text-[#64748B]">
+              {member.email || "No email"}
+            </p>
+          </div>
+
+        </div>
+
+        {/* Role + Joined Time */}
+        <div className="text-right">
+
+          <span className="inline-flex rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[10px] font-bold text-[#475569]">
+            {member.role || "Unknown"}
+          </span>
+
+          <p className="mt-1 text-[10px] text-[#94A3B8]">
+            {getRelativeTime(member.joined)}
+          </p>
+
+        </div>
+
+      </div>
+    ))
+  ) : (
+    <div className="col-span-full p-8 text-center">
+      <p className="text-sm font-medium text-[#64748B]">
+        No users found.
+      </p>
+    </div>
+  )}
+
+</div>
 
       </section>
 
