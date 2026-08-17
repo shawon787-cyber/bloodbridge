@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -16,7 +16,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
-import { useDonationRequests } from "@/context/DonationRequestContext";
 
 const urgencyColor = (urgency) => {
   switch (urgency) {
@@ -55,16 +54,151 @@ const SectionTitle = ({ children }) => (
   </h3>
 );
 
+const normalizeStatus = (status) => {
+  if (!status) return "";
+  const map = {
+    pending: "Pending",
+    "in progress": "In Progress",
+    inprogress: "In Progress",
+    done: "Done",
+    completed: "Done",
+    cancelled: "Cancelled",
+    canceled: "Cancelled",
+    rejected: "Rejected",
+    urgent: "Urgent",
+  };
+  const key = String(status).toLowerCase().replace(/\s+/g, "");
+  return map[key] || status;
+};
+
+const normalizeRequest = (req) => {
+  if (!req || typeof req !== "object") return null;
+
+  const rawUnits = req.units;
+  let normalizedUnits = "1";
+  if (typeof rawUnits === "number") {
+    normalizedUnits = String(rawUnits);
+  } else if (typeof rawUnits === "string") {
+    const match = rawUnits.match(/(\d+)/);
+    normalizedUnits = match ? match[1] : "1";
+  }
+
+  const recipientName = req.recipientName || req.name || req.patient || "";
+  const hospitalName = req.hospitalName || req.hospital || "";
+  const requesterName = req.requesterName || req.contact || req.name || "";
+  const requesterEmail = req.requesterEmail || req.email || "";
+
+  const status = normalizeStatus(req.status);
+
+  const districtId = req.districtId || req.district || "";
+  const upazilaId = req.upazilaId || req.upazila || "";
+
+  const districtName = req.districtName || "";
+  const upazilaName = req.upazilaName || "";
+
+  const id = req._id || req.id || req.requestId || "";
+  const createdAt = req.createdAt || "";
+  const phoneNumber = req.phoneNumber || "";
+
+  return {
+    ...req,
+    id,
+    requester: {
+      name: requesterName,
+      email: requesterEmail,
+      phoneNumber,
+    },
+    recipientName,
+    hospitalName,
+    hospital: {
+      name: hospitalName,
+    },
+    district: String(districtId),
+    districtName,
+    upazila: String(upazilaId),
+    upazilaName,
+    bloodGroup: req.bloodGroup || "",
+    units: normalizedUnits,
+    requiredDate: req.donationDate || req.date || req.requiredDate || "",
+    requiredTime: req.donationTime || req.time || "",
+    donationDate: req.donationDate || req.date || req.requiredDate || "",
+    donationTime: req.donationTime || req.time || "",
+    address: req.address || "",
+    contact: req.contact || "",
+    description: req.message || req.description || "",
+    patient: recipientName,
+    location: {
+      districtName: districtName,
+      address: req.address || "",
+    },
+    createdAt,
+    phoneNumber,
+  };
+};
+
 export default function DonationRequestDetailsPage() {
   const params = useParams();
-  const { requests, isInitialized, getRequestById } = useDonationRequests();
+  const [donationRequest, setDonationRequest] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const request = useMemo(() => {
-    if (!params.id) return null;
-    return getRequestById(params.id);
-  }, [params.id, getRequestById]);
+  const id = params?.id;
 
-  const isLoading = !isInitialized;
+  useEffect(() => {
+    if (!id) return;
+
+    let isMounted = true;
+
+    const fetchDonationRequest = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+        const res = await fetch(`${baseUrl}/api/donation-requests/${id}`);
+
+        console.log("Donation Request ID:", id);
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error("Donation request not found");
+          }
+          if (res.status === 400) {
+            throw new Error("Invalid donation request ID");
+          }
+          throw new Error("Failed to load donation request");
+        }
+
+        const result = await res.json();
+
+        console.log("Donation Request API Response:", result);
+        console.log("Donation Request Data:", result.data);
+
+        if (!result.success || !result.data) {
+          throw new Error(result.message || "Failed to load donation request");
+        }
+
+        if (isMounted) {
+          const normalized = normalizeRequest(result.data);
+          setDonationRequest(normalized);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || "Failed to load donation request");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchDonationRequest();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -106,7 +240,7 @@ export default function DonationRequestDetailsPage() {
     );
   }
 
-  if (!request) {
+  if (error || !donationRequest) {
     return (
       <main className="min-h-screen bg-[#FFF7F8]">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
@@ -120,7 +254,7 @@ export default function DonationRequestDetailsPage() {
             </h1>
 
             <p className="mt-3 max-w-md mx-auto text-sm text-[#64748B]">
-              The donation request you are looking for does not exist or may have been removed.
+              {error || "The donation request you are looking for does not exist or may have been removed."}
             </p>
 
             <Link
@@ -135,6 +269,8 @@ export default function DonationRequestDetailsPage() {
       </main>
     );
   }
+
+  const request = donationRequest;
 
   return (
     <main className="min-h-screen bg-[#FFF7F8]">
@@ -226,9 +362,10 @@ export default function DonationRequestDetailsPage() {
             {/* Hospital Information */}
             <SectionTitle>Hospital Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={HeartPulse} label="Hospital Name" value={request.hospital?.name} />
-              <InfoRow icon={MapPin} label="Location" value={request.location?.districtName} />
-              <InfoRow icon={MapPin} label="Address" value={request.location?.address} className="sm:col-span-2" />
+              <InfoRow icon={HeartPulse} label="Hospital Name" value={request.hospitalName} />
+              <InfoRow icon={MapPin} label="District" value={request.districtName} />
+              <InfoRow icon={MapPin} label="Upazila" value={request.upazilaName} />
+              <InfoRow icon={MapPin} label="Address" value={request.address} className="sm:col-span-2" />
             </div>
 
             <div className="my-6 h-px bg-[#F1E5E7]" />
@@ -236,9 +373,9 @@ export default function DonationRequestDetailsPage() {
             {/* Contact Information */}
             <SectionTitle>Contact Information</SectionTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoRow icon={User} label="Contact Person" value={request.requester?.name} />
-              <InfoRow icon={Phone} label="Phone Number" value={request.contact} />
-              <InfoRow icon={Mail} label="Email" value={request.requester?.email} className="sm:col-span-2" />
+              <InfoRow icon={User} label="Contact Person" value={request.requesterName} />
+              <InfoRow icon={Phone} label="Phone Number" value={request.phoneNumber} />
+              <InfoRow icon={Mail} label="Email" value={request.requesterEmail} className="sm:col-span-2" />
             </div>
 
             <div className="my-6 h-px bg-[#F1E5E7]" />

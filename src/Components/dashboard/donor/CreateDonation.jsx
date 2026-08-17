@@ -13,6 +13,7 @@ import {
   Hospital,
   MapPin,
   MessageSquareText,
+  Phone,
   Send,
   UserRound,
   CalendarDays,
@@ -76,6 +77,7 @@ export default function CreateDonation() {
   const [formData, setFormData] = useState({
     requesterName: "",
     requesterEmail: "",
+    phoneNumber: "",
     recipientName: "",
     hospitalName: "",
     district: "",
@@ -216,6 +218,11 @@ export default function CreateDonation() {
         "Full address is required.";
     }
 
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber =
+        "Phone number is required.";
+    }
+
     if (!formData.message.trim()) {
       newErrors.message =
         "Please provide a request message.";
@@ -282,6 +289,7 @@ export default function CreateDonation() {
       ...prev,
 
       recipientName: "",
+      phoneNumber: "",
       hospitalName: "",
       district: "",
       upazila: "",
@@ -434,6 +442,35 @@ export default function CreateDonation() {
                 )} bg-slate-50`}
                 readOnly
               />
+            </div>
+
+            {/* Phone Number */}
+
+            <div>
+              <label className={labelClass}>
+                Phone Number
+              </label>
+
+              <div className="relative">
+                <Phone
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  className={`${inputClass(
+                    "phoneNumber"
+                  )} pl-9`}
+                  placeholder="Enter your phone number"
+                  required
+                />
+              </div>
+
+              <FieldError field="phoneNumber" />
             </div>
           </div>
         </section>

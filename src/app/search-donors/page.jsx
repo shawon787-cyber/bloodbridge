@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   ChevronDown,
   Droplets,
@@ -10,13 +10,11 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  Phone,
-  UserPlus,
+  Heart,
 } from "lucide-react";
 
 import districtsData from "@/data/districts.json";
 import upazilasData from "@/data/upazilas.json";
-import { useDonors } from "@/context/DonorContext";
 
 const districts = districtsData[2]?.data || [];
 const upazilas = upazilasData[2]?.data || [];
@@ -32,13 +30,76 @@ const bloodGroups = [
   "O-",
 ];
 
+const DONORS_PER_PAGE = 9;
+
 const SearchDonorsPage = () => {
   const [bloodGroup, setBloodGroup] = useState("");
   const [district, setDistrict] = useState("");
   const [upazila, setUpazila] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [donors, setDonors] = useState([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { donors, isInitialized } = useDonors();
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchDonors = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+        const res = await fetch(`${baseUrl}/api/donors`, {
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch donors");
+        }
+
+        const result = await res.json();
+
+        if (result.success !== true || !Array.isArray(result.data)) {
+          throw new Error("Invalid API response");
+        }
+
+        if (isMounted) {
+          setDonors(result.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch donors:", err);
+        if (isMounted) {
+          setError(err.message || "Failed to fetch donors");
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitialized(true);
+        }
+      }
+    };
+
+    fetchDonors();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const normalizedDonors = useMemo(() => {
+    return donors
+      .filter((donor) => donor.role === "donor")
+      .map((donor) => ({
+        id: donor._id || donor.id,
+        name: donor.name,
+        bloodGroup: donor.bloodGroup,
+        district: donor.district,
+        upazila: donor.upazila,
+        email: donor.email,
+        phoneNumber: donor.phoneNumber,
+        status: donor.status,
+        image: donor.image,
+        role: donor.role,
+      }));
+  }, [donors]);
 
   const selectedDistrict = useMemo(() => {
     return districts.find(
@@ -59,23 +120,69 @@ const SearchDonorsPage = () => {
     setDistrict(e.target.value);
     setUpazila("");
     setHasSearched(false);
+    setCurrentPage(1);
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
+    setCurrentPage(1);
     setHasSearched(true);
   };
 
   const matchedDonors = useMemo(() => {
     if (!hasSearched || !isInitialized) return [];
 
-    return donors.filter((donor) => {
+    return normalizedDonors.filter((donor) => {
       const matchesBlood = !bloodGroup || donor.bloodGroup === bloodGroup;
-      const matchesDistrict = !district || donor.location === selectedDistrict?.name || donor.district === district;
-      const matchesUpazila = !upazila || donor.upazila === upazila;
+      const matchesDistrict = !district || donor.district === selectedDistrict?.name;
+      const selectedUpazila = filteredUpazilas.find(
+        (item) => String(item.id) === String(upazila)
+      );
+      const matchesUpazila = !upazila || donor.upazila === selectedUpazila?.name;
       return matchesBlood && matchesDistrict && matchesUpazila;
     });
-  }, [bloodGroup, district, upazila, hasSearched, donors, isInitialized, selectedDistrict]);
+  }, [bloodGroup, district, upazila, hasSearched, normalizedDonors, isInitialized, selectedDistrict, filteredUpazilas]);
+
+  const totalPages = Math.ceil(matchedDonors.length / DONORS_PER_PAGE);
+  const startIndex = (currentPage - 1) * DONORS_PER_PAGE;
+  const paginatedDonors = matchedDonors.slice(
+    startIndex,
+    startIndex + DONORS_PER_PAGE
+  );
+
+  const visiblePages = useMemo(() => {
+    const maxVisible = 5;
+    const pages = [];
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+      return pages;
+    }
+
+    pages.push(1);
+
+    if (currentPage > 3) {
+      pages.push("...");
+    }
+
+    for (
+      let i = Math.max(2, currentPage - 1);
+      i <= Math.min(totalPages - 1, currentPage + 1);
+      i++
+    ) {
+      pages.push(i);
+    }
+
+    if (currentPage < totalPages - 2) {
+      pages.push("...");
+    }
+
+    pages.push(totalPages);
+
+    return pages;
+  }, [totalPages, currentPage]);
 
   return (
     <main className="min-h-screen bg-[#FFF9FA]">
@@ -223,6 +330,7 @@ const SearchDonorsPage = () => {
                       onChange={(e) => {
                         setBloodGroup(e.target.value);
                         setHasSearched(false);
+                        setCurrentPage(1);
                       }}
                       className="h-12 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/70 pl-12 pr-10 text-sm font-medium text-slate-600 outline-none transition-all duration-200 hover:border-slate-300 hover:bg-white focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#FDECEF]"
                     >
@@ -326,6 +434,7 @@ const SearchDonorsPage = () => {
                       onChange={(e) => {
                         setUpazila(e.target.value);
                         setHasSearched(false);
+                        setCurrentPage(1);
                       }}
                       disabled={!district}
                       className={`h-12 w-full appearance-none rounded-xl border pl-12 pr-10 text-sm font-medium outline-none transition-all duration-200 ${
@@ -491,13 +600,13 @@ const SearchDonorsPage = () => {
 
                   </div>
 
-                  <h2 className="mt-1 text-xl font-black text-slate-900">
-                    Available Blood Donors
-                  </h2>
+                   <h2 className="mt-1 text-xl font-black text-slate-900">
+                     Available Blood Donors
+                   </h2>
 
-                  <p className="mt-1 text-xs text-slate-400">
-                    Donors matching your selected criteria
-                  </p>
+                   <p className="mt-1 text-xs text-slate-400">
+                     {matchedDonors.length} donors found
+                   </p>
 
                 </div>
 
@@ -532,7 +641,18 @@ const SearchDonorsPage = () => {
 
               </div>
 
-              {!isInitialized ? (
+              {error ? (
+                <div className="mt-7 flex min-h-[210px] items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-slate-500">
+                      Failed to load donors
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Please try again later.
+                    </p>
+                  </div>
+                </div>
+              ) : !isInitialized ? (
                 <div className="mt-7 flex min-h-[210px] items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
                 </div>
@@ -546,72 +666,252 @@ const SearchDonorsPage = () => {
                     </div>
 
                     <p className="mt-4 text-sm font-bold text-slate-500">
-                      No donor results available yet
+                      No donors found
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      Connect your donor collection or API here.
+                      Try adjusting your search criteria.
                     </p>
 
                   </div>
 
                 </div>
               ) : (
-                <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {matchedDonors.map((donor) => (
-                    <div
-                      key={donor.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-lg font-black text-[#D62839]">
-                          {donor.bloodGroup}
-                        </div>
+              <div>
+                <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+  {paginatedDonors.map((donor) => (
+    <div
+      key={donor.id}
+      className="group relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-1 hover:border-[#F1C7CD] hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+    >
+      {/* Top Accent */}
+      <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#F21D3B] opacity-70 transition-opacity group-hover:opacity-100" />
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900">
-                            {donor.name}
-                          </p>
+      {/* Card Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3.5">
+          {/* Blood Group Badge */}
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#A4161A] via-[#D62839] to-[#F21D3B] text-white shadow-[0_8px_20px_rgba(214,40,57,0.22)]">
+            <Droplets
+              size={17}
+              fill="currentColor"
+              className="absolute left-2.5 top-2.5 opacity-30"
+            />
 
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#A0A0A0]">
-                            {donor.id}
-                          </p>
-                        </div>
-                      </div>
+            <span className="relative text-lg font-black tracking-tight">
+              {donor.bloodGroup}
+            </span>
+          </div>
 
-                      <div className="mt-4 space-y-2.5">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <MapPin size={13} className="text-[#D62839]" />
-                          {donor.location}
-                        </div>
+          {/* Name */}
+          <div className="min-w-0">
+            <h3 className="truncate text-[15px] font-extrabold text-slate-900">
+              {donor.name}
+            </h3>
 
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Phone size={13} className="text-[#D62839]" />
-                          {donor.phone}
-                        </div>
+            <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              Blood Donor
+            </p>
+          </div>
+        </div>
 
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Droplets size={13} className="text-[#D62839]" />
-                          {donor.bloodGroup}
-                        </div>
-                      </div>
+        {/* Status */}
+        <span
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold ${
+            donor.status?.toLowerCase() === "active"
+              ? "bg-emerald-50 text-emerald-600"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              donor.status?.toLowerCase() === "active"
+                ? "bg-emerald-500"
+                : "bg-slate-400"
+            }`}
+          />
 
-                      <div className="mt-4 flex items-center justify-between">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                          donor.availability === "Available"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-slate-100 text-slate-600"
-                        }`}>
-                          {donor.availability}
-                        </span>
+          {donor.status || "Unknown"}
+        </span>
+      </div>
 
-                        <span className="text-[10px] text-slate-400">
-                          Last donation: {new Date(donor.lastDonation).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {/* Divider */}
+      <div className="my-5 h-px bg-slate-100" />
+
+      {/* Donor Information */}
+      <div className="space-y-3">
+        {/* Blood Group */}
+        <div className="flex items-center justify-between rounded-xl bg-[#FFF8F9] px-3.5 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFF0F2] text-[#D62839]">
+              <Droplets size={15} fill="currentColor" />
+            </div>
+
+            <span className="text-xs font-medium text-slate-500">
+              Blood Group
+            </span>
+          </div>
+
+          <span className="text-sm font-black text-[#D62839]">
+            {donor.bloodGroup}
+          </span>
+        </div>
+
+        {/* District */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <MapPin size={14} />
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              District
+            </p>
+
+             <p className="truncate text-xs font-bold text-slate-700">
+               {donor.district || "Not available"}
+             </p>
+          </div>
+        </div>
+
+        {/* Upazila */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <MapPin size={14} />
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Upazila
+            </p>
+
+             <p className="truncate text-xs font-bold text-slate-700">
+               {donor.upazila || "Not available"}
+             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Contact Button */}
+      {/* <div className="mt-5">
+        {donor.phoneNumber ? (
+          <a
+            href={`tel:${donor.phoneNumber}`}
+            className="group/button flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] text-xs font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(214,40,57,0.25)] active:translate-y-0"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+
+            <span>Contact Donor</span>
+
+            <ArrowRight
+              size={14}
+              className="transition-transform duration-200 group-hover/button:translate-x-0.5"
+            />
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-100 text-xs font-bold text-slate-400"
+          >
+            Contact Unavailable
+          </button>
+        )}
+      </div> */}
+      {/* Contact Actions */}
+<div className="mt-5 flex items-center gap-2">
+  {/* Contact Now */}
+  <button
+    type="button"
+    className="group flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] text-xs font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(214,40,57,0.25)] active:translate-y-0 active:scale-[0.98]"
+  >
+    
+
+    <Heart
+      size={18}
+      strokeWidth={2}
+    />
+    <span>Contact Now</span>
+  </button>
+
+  
+</div>
+    </div>
+  ))}
+</div>
+
+                {totalPages > 1 && (
+                  <div className="mt-8 flex items-center justify-center">
+                    <nav className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(p - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                        className={`flex h-9 px-4 items-center justify-center rounded-full border text-xs font-bold ${
+                          currentPage === 1
+                            ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-[#D62839] hover:bg-[#FFF0F2] hover:text-[#D62839]"
+                        }`}
+                      >
+                        Previous
+                      </button>
+
+                      {visiblePages.map((page, idx) =>
+                        page === "..." ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="flex h-9 w-9 items-center justify-center text-xs font-bold text-slate-400"
+                          >
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border text-xs font-bold ${
+                              currentPage === page
+                                ? "border-[#D62839] bg-[#D62839] text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-[#D62839] hover:bg-[#FFF0F2] hover:text-[#D62839]"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        )
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(p + 1, totalPages))
+                        }
+                        disabled={currentPage === totalPages}
+                        className={`flex h-9 w-12 items-center justify-center rounded-xl border text-xs font-bold ${
+                          currentPage === totalPages
+                            ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-[#D62839] hover:bg-[#FFF0F2] hover:text-[#D62839]"
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  </div>
+                )}
+              </div>
               )}
 
             </div>

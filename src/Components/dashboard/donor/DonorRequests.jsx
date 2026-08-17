@@ -19,8 +19,7 @@ import {
 } from "lucide-react";
 
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
-import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
-import EmptyState from "@/Components/dashboard/shared/EmptyState";
+
 
 const statusTabs = [
   { label: "All", value: "All" },
