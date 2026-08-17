@@ -68,7 +68,7 @@ const urgencyLevels = [
 
 export default function CreateDonation() {
   const today = new Date().toISOString().split("T")[0];
-  const { addDonationRequest } = useDonationRequests();
+  const { addDonationRequest, refreshDonationRequests } = useDonationRequests();
   const { data: session, isPending: sessionPending } = useSession();
 
   const currentUser = session?.user;
@@ -91,6 +91,8 @@ export default function CreateDonation() {
 
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (currentUser) {
@@ -228,43 +230,47 @@ export default function CreateDonation() {
   // SUBMIT
   // =====================================================
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validateForm()) return;
 
-    const selectedUpazila = filteredUpazilas.find(
-      (item) =>
-        String(item.id) === String(formData.upazila)
-    );
+    setIsSubmitting(true);
+    setSubmitError("");
 
-    const submissionData = {
-      ...formData,
+    try {
+      const selectedUpazila = filteredUpazilas.find(
+        (item) => String(item.id) === String(formData.upazila)
+      );
 
-      districtId: formData.district,
-      districtName: selectedDistrict?.name || "",
-      districtBnName:
-        selectedDistrict?.bn_name || "",
+      const submissionData = {
+        ...formData,
+        districtId: formData.district,
+        districtName: selectedDistrict?.name || "",
+        districtBnName: selectedDistrict?.bn_name || "",
+        upazilaId: formData.upazila,
+        upazilaName: selectedUpazila?.name || "",
+        status: "Pending",
+        createdAt: new Date().toISOString(),
+      };
 
-      upazilaId: formData.upazila,
-      upazilaName: selectedUpazila?.name || "",
+      console.log("Submitting donation request:", submissionData);
 
-      status: "Pending",
-      createdAt: new Date().toISOString(),
-    };
+      const response = await addDonationRequest(submissionData);
 
-    addDonationRequest(submissionData);
-
-    setSubmitted(true);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-
-    setTimeout(() => {
-      setSubmitted(false);
-    }, 5000);
+      if (response?.success) {
+        console.log("Refreshing donation requests...");
+        await refreshDonationRequests();
+        setSubmitted(true);
+      } else {
+        setSubmitError(response?.error || "Failed to submit donation request. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to submit donation request:", error);
+      setSubmitError("Failed to submit donation request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // =====================================================
@@ -935,6 +941,13 @@ export default function CreateDonation() {
 
           {/* ACTIONS */}
 
+          {submitError && (
+            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+              <p className="text-sm font-medium text-red-700">{submitError}</p>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-col-reverse gap-2.5 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -946,10 +959,20 @@ export default function CreateDonation() {
 
             <button
               type="submit"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#A4161A] hover:shadow-md active:scale-[0.99]"
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#A4161A] hover:shadow-md active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <Send size={15} />
-              Submit Donation Request
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={15} />
+                  Submit Donation Request
+                </>
+              )}
             </button>
           </div>
         </section>

@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useContext } from "react";
 import { createContext } from "react";
-import { donationRequests as legacyDonationRequests } from "@/data/donationRequests";
-import { mockBloodRequests } from "@/data/mockData";
+import {
+  getDonationRequests,
+  createDonationRequest as createDonationRequestAction,
+} from "@/lib/actions/donationRequests";
 import {
   normalizeStatus,
   DONATION_REQUEST_STATUSES,
 } from "@/lib/donationRequests";
-
-const STORAGE_KEY = "bloodbridge_donation_requests";
 
 const buildLocation = (raw) => {
   if (!raw) return { name: "", districtName: "", upazilaName: "" };
@@ -61,7 +61,7 @@ const normalizeRequest = (req) => {
   const upazilaName =
     req.upazilaName || location.upazilaName || "";
 
-  const id = req.id || req.requestId || `DR-${Date.now()}`;
+  const id = req.id || req.requestId || req._id || `DR-${Date.now()}`;
   const createdAt = req.createdAt || new Date().toISOString();
 
   const canonical = {
@@ -116,23 +116,6 @@ const normalizeRequest = (req) => {
   };
 };
 
-const loadInitialRequests = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed.map(normalizeRequest).filter(Boolean);
-      }
-    }
-  } catch (error) {
-    console.error("Failed to load donation requests from localStorage", error);
-  }
-
-  const combined = [...legacyDonationRequests, ...mockBloodRequests];
-  return combined.map(normalizeRequest).filter(Boolean);
-};
-
 const DonationRequestContext = createContext(null);
 
 export function DonationRequestProvider({ children }) {
@@ -140,33 +123,60 @@ export function DonationRequestProvider({ children }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    const initial = loadInitialRequests();
-    setRequests(initial);
-    setIsInitialized(true);
+    let isMounted = true;
+
+    const fetchRequests = async () => {
+      try {
+        const result = await getDonationRequests();
+        if (isMounted && result.success && Array.isArray(result.data)) {
+          setRequests(result.data.map(normalizeRequest).filter(Boolean));
+        }
+      } catch (error) {
+        console.error("Failed to fetch donation requests:", error);
+        setRequests([]);
+      } finally {
+        if (isMounted) {
+          setIsInitialized(true);
+        }
+      }
+    };
+
+    fetchRequests();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-    } catch (error) {
-      console.error("Failed to save donation requests to localStorage", error);
+  const addDonationRequest = useCallback(async (requestData) => {
+    console.log("Submitting donation request:", requestData);
+    const result = await createDonationRequestAction(requestData);
+    console.log("Create donation API response:", result);
+    if (!result?.success) {
+      throw new Error(result?.message || "Failed to create donation request");
     }
-  }, [requests, isInitialized]);
-
-  const addDonationRequest = useCallback((request) => {
-    const normalized = normalizeRequest({
-      ...request,
-      id: request.id || `DR-${Date.now()}`,
-      createdAt: request.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    if (!normalized) return;
-
-    setRequests((prev) => [normalized, ...prev]);
+    return result;
   }, []);
+
+  const refreshDonationRequests = useCallback(async () => {
+    console.log("Refreshing donation requests...");
+    try {
+      const result = await getDonationRequests();
+      console.log("Donation requests from backend:", result);
+      if (result.success && Array.isArray(result.data)) {
+        setRequests(result.data.map(normalizeRequest).filter(Boolean));
+      }
+    } catch (error) {
+      console.error("Failed to refresh donation requests:", error);
+      throw error;
+    }
+  }, []);
+
+  const createDonationRequest = useCallback(async (requestData) => {
+    const result = await addDonationRequest(requestData);
+    await refreshDonationRequests();
+    return result;
+  }, [addDonationRequest, refreshDonationRequests]);
 
   const updateDonationRequest = useCallback((id, updates) => {
     setRequests((prev) =>
@@ -201,6 +211,8 @@ export function DonationRequestProvider({ children }) {
       value={{
         requests,
         addDonationRequest,
+        createDonationRequest,
+        refreshDonationRequests,
         updateDonationRequest,
         updateRequestStatus,
         getRequestById,
