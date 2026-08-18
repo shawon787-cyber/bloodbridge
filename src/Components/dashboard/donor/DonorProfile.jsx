@@ -18,7 +18,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 export default function DonorProfile() {
   const { data: session, isPending } = useSession();
@@ -27,7 +28,6 @@ export default function DonorProfile() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [savedFormData, setSavedFormData] = useState(null);
-  const [savedImage, setSavedImage] = useState("");
   const [imageError, setImageError] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -52,30 +52,63 @@ export default function DonorProfile() {
     confirm: "",
   });
 
-  // ============================================================
-  // LOAD USER SESSION DATA
-  // ============================================================
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState(null);
+
+  const [passwordMessage, setPasswordMessage] = useState(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  /* ============================================================
+     FETCH PROFILE FROM BACKEND
+  ============================================================ */
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
-    const userImage = user.image || "";
+    const fetchProfile = async () => {
+      setIsLoadingProfile(true);
+      setProfileError(null);
 
-    setFormData((prev) => ({
-      ...prev,
-      fullName: user.name || "Arif Khan",
-      email: user.email || "arif@email.com",
-      image: userImage,
-    }));
+      try {
+        const response = await fetch(
+          `http://localhost:5000/api/user/${user.id}`
+        );
 
-    setImagePreview(userImage);
-    setSavedImage(userImage);
-    setImageError(false);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch profile: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const data = result.data;
+          const userImage = data.image || user.image || "";
+
+          setFormData({
+            fullName: data.name || "",
+            email: data.email || "",
+            image: userImage,
+            phone: data.phone || "",
+            bloodGroup: data.bloodGroup || "",
+            location: data.districtName || data.district || "",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile:", error);
+        setProfileError("Failed to load profile data.");
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchProfile();
   }, [user]);
 
-  // ============================================================
-  // HANDLE FORM CHANGE
-  // ============================================================
+  /* ============================================================
+     HANDLE FORM CHANGE
+  ============================================================ */
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -86,30 +119,27 @@ export default function DonorProfile() {
     }));
   };
 
-  // ============================================================
-  // HANDLE PROFILE IMAGE
-  // ============================================================
+  /* ============================================================
+     HANDLE PROFILE IMAGE
+  ============================================================ */
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
-    // Check image type
     if (!file.type.startsWith("image/")) {
       alert("Please select a valid image file.");
       e.target.value = "";
       return;
     }
 
-    // 5MB limit
     if (file.size > 5 * 1024 * 1024) {
       alert("Image size must be less than 5MB.");
       e.target.value = "";
       return;
     }
 
-    // Cleanup previous preview URL
     if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
@@ -126,9 +156,9 @@ export default function DonorProfile() {
     }));
   };
 
-  // ============================================================
-  // PASSWORD CHANGE
-  // ============================================================
+  /* ============================================================
+     PASSWORD CHANGE
+  ============================================================ */
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
@@ -137,86 +167,196 @@ export default function DonorProfile() {
       ...prev,
       [name]: value,
     }));
+
+    setPasswordMessage(null);
   };
 
-  // ============================================================
-  // START EDITING
-  // ============================================================
+  const handleChangePassword = async () => {
+    if (
+      !passwordData.current ||
+      !passwordData.newPassword ||
+      !passwordData.confirm
+    ) {
+      setPasswordMessage({
+        type: "error",
+        text: "Please fill in all fields.",
+      });
+
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirm) {
+      setPasswordMessage({
+        type: "error",
+        text: "New passwords do not match.",
+      });
+
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setPasswordMessage(null);
+
+    try {
+      const { error } = await authClient.changePassword({
+        currentPassword: passwordData.current,
+        newPassword: passwordData.newPassword,
+      });
+
+      if (error) {
+        setPasswordMessage({
+          type: "error",
+          text: error.message || "Failed to update password.",
+        });
+      } else {
+        setPasswordMessage({
+          type: "success",
+          text: "Password updated successfully.",
+        });
+
+        setPasswordData({
+          current: "",
+          newPassword: "",
+          confirm: "",
+        });
+
+        toast.success("Password updated successfully");
+      }
+    } catch (error) {
+      setPasswordMessage({
+        type: "error",
+        text: "Failed to update password.",
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  /* ============================================================
+     START EDITING
+  ============================================================ */
 
   const handleEdit = () => {
     setSavedFormData({ ...formData });
-    setSavedImage(imagePreview);
 
     setIsEditing(true);
   };
 
-  // ============================================================
-  // SAVE PROFILE
-  // ============================================================
+  /* ============================================================
+     SAVE PROFILE
+  ============================================================ */
 
   const handleSave = async (e) => {
     e.preventDefault();
 
-    /*
-      এখানে তোমার API call করতে পারবে।
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
 
-      Example:
+    setIsSaving(true);
+    setSaveMessage(null);
 
-      const form = new FormData();
+    try {
+      const payload = {
+        name: formData.fullName,
+        image: formData.image,
+        phone: formData.phone,
+        bloodGroup: formData.bloodGroup,
+      };
 
-      form.append("fullName", formData.fullName);
-      form.append("email", formData.email);
-      form.append("phone", formData.phone);
+      const response = await fetch(
+        `http://localhost:5000/api/users/${user.id}/profile`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
-      if (selectedImage) {
-        form.append("image", selectedImage);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const updatedUser = result.data;
+        const updatedImage = updatedUser.image || formData.image;
+
+        setFormData({
+          fullName: updatedUser.name || "",
+          email: updatedUser.email || "",
+          image: updatedImage,
+          phone: updatedUser.phone || "",
+          bloodGroup: updatedUser.bloodGroup || "",
+        });
+
+        setSelectedImage(null);
+        setSavedFormData({ ...formData });
+        setIsEditing(false);
+
+        toast.success("Profile updated successfully");
+
+        const refreshed = await fetch(
+          `http://localhost:5000/api/user/${user.id}`
+        );
+
+        if (refreshed.ok) {
+          const refreshedResult = await refreshed.json();
+
+          if (refreshedResult.success && refreshedResult.data) {
+            const fresh = refreshedResult.data;
+            const freshImage = fresh.image || updatedImage;
+
+            setFormData({
+              fullName: fresh.name || "",
+              email: fresh.email || "",
+              image: freshImage,
+              phone: fresh.phone || "",
+              bloodGroup: fresh.bloodGroup || "",
+            });
+          }
+        }
+      } else {
+        toast.error(result.message || "Failed to update profile");
       }
-
-      await fetch("/api/profile", {
-        method: "PUT",
-        body: form,
-      });
-    */
-
-    setSavedFormData({ ...formData });
-    setSavedImage(imagePreview);
-    setIsEditing(false);
+    } catch (error) {
+      console.error("Profile update error:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // ============================================================
-  // CANCEL EDITING
-  // ============================================================
+  /* ============================================================
+     CANCEL EDITING
+  ============================================================ */
 
   const handleCancel = () => {
     if (savedFormData) {
       setFormData(savedFormData);
     }
 
-    // Remove newly selected blob image
-    if (
-      imagePreview?.startsWith("blob:") &&
-      imagePreview !== savedImage
-    ) {
+    if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
 
-    setImagePreview(savedImage || "");
+    setImagePreview("");
     setSelectedImage(null);
     setIsEditing(false);
     setImageError(false);
   };
 
-  // ============================================================
-  // IMAGE ERROR
-  // ============================================================
+  /* ============================================================
+     IMAGE ERROR
+  ============================================================ */
 
   const handleImageError = () => {
     setImageError(true);
   };
 
-  // ============================================================
-  // CLEANUP OBJECT URL
-  // ============================================================
+  /* ============================================================
+     CLEANUP OBJECT URL
+  ============================================================ */
 
   useEffect(() => {
     return () => {
@@ -226,18 +366,28 @@ export default function DonorProfile() {
     };
   }, [imagePreview]);
 
-  // ============================================================
-  // FIRST LETTER
-  // ============================================================
+  /* ============================================================
+     FIRST LETTER
+  ============================================================ */
 
   const firstLetter =
     formData.fullName?.trim()?.charAt(0)?.toUpperCase() || "U";
 
-  // ============================================================
-  // LOADING
-  // ============================================================
+  const displayImage = selectedImage ? imagePreview : (formData.image || user?.image || "");
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (isPending) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
+      </div>
+    );
+  }
+
+  if (isLoadingProfile) {
     return (
       <div className="flex min-h-[500px] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
@@ -286,9 +436,9 @@ export default function DonorProfile() {
 
                   {/* Profile Image */}
 
-                  {imagePreview && !imageError ? (
+                  {displayImage && !imageError ? (
                     <img
-                      src={imagePreview}
+                      src={displayImage}
                       alt={formData.fullName || "Profile"}
                       onError={handleImageError}
                       className="h-full w-full rounded-full border-[5px] border-white/90 object-cover shadow-xl"
@@ -372,46 +522,47 @@ export default function DonorProfile() {
 
             {/* Profile Actions */}
 
-<div className="mx-auto flex items-center gap-3 lg:mx-0">
-  {!isEditing ? (
-    <button
-      type="button"
-      onClick={handleEdit}
-      className="group flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50"
-    >
-      <Edit3
-        size={16}
-        className="transition-transform duration-200 group-hover:rotate-[-8deg]"
-      />
+            <div className="mx-auto flex items-center gap-3 lg:mx-0">
+              {!isEditing ? (
+                <button
+                  type="button"
+                  onClick={handleEdit}
+                  className="group flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50"
+                >
+                  <Edit3
+                    size={16}
+                    className="transition-transform duration-200 group-hover:rotate-[-8deg]"
+                  />
 
-      Edit Profile
-    </button>
-  ) : (
-    <>
-      {/* Cancel */}
-      <button
-        type="button"
-        onClick={handleCancel}
-        className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all duration-200 hover:bg-white/20"
-      >
-        <X size={16} />
+                  Edit Profile
+                </button>
+              ) : (
+                <>
+                  {/* Cancel */}
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all duration-200 hover:bg-white/20"
+                  >
+                    <X size={16} />
 
-        Cancel
-      </button>
+                    Cancel
+                  </button>
 
-      {/* Save Changes */}
-      <button
-        type="submit"
-        form="profile-form"
-        className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#D62839] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50"
-      >
-        <CheckCircle2 size={16} />
+                  {/* Save Changes */}
+                  <button
+                    type="submit"
+                    form="profile-form"
+                    disabled={isSaving}
+                    className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#D62839] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <CheckCircle2 size={16} />
 
-        Save Changes
-      </button>
-    </>
-  )}
-</div>
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </>
+              )}
+            </div>
 
           </div>
 
@@ -447,6 +598,28 @@ export default function DonorProfile() {
 
           </div>
         </section>
+
+        {/* =====================================================
+            SAVE MESSAGE
+        ====================================================== */}
+
+        {saveMessage && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              saveMessage.type === "success"
+                ? "border-emerald-100 bg-emerald-50 text-emerald-600"
+                : "border-red-100 bg-red-50 text-red-600"
+            }`}
+          >
+            {saveMessage.text}
+          </div>
+        )}
+
+        {profileError && (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {profileError}
+          </div>
+        )}
 
         {/* =====================================================
             MAIN CONTENT
@@ -590,14 +763,23 @@ export default function DonorProfile() {
                   disabled={!isEditing}
                 />
 
-                <ProfileField
-                  name="email"
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                />
+                <div>
+                  <label className="mb-2 block text-xs font-bold text-slate-600">
+                    Email
+                  </label>
+
+                  <input
+                    type="email"
+                    value={formData.email}
+                    readOnly
+                    disabled
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 text-sm font-medium text-slate-500 outline-none cursor-not-allowed"
+                  />
+
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    Email address cannot be changed.
+                  </p>
+                </div>
 
                 <ProfileField
                   name="phone"
@@ -686,28 +868,6 @@ export default function DonorProfile() {
                 </div>
 
               </div>
-
-              {/* {isEditing && (
-                <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
-
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    form="profile-form"
-                    className="rounded-xl bg-[#D62839] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A]"
-                  >
-                    Save Changes
-                  </button>
-
-                </div>
-              )} */}
 
             </form>
 
@@ -885,14 +1045,28 @@ export default function DonorProfile() {
 
               <button
                 type="button"
-                className="h-11 w-full rounded-xl bg-[#D62839] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A] lg:w-auto"
+                onClick={handleChangePassword}
+                disabled={isUpdatingPassword}
+                className="h-11 w-full rounded-xl bg-[#D62839] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto"
               >
-                Update Password
+                {isUpdatingPassword ? "Updating Password..." : "Update Password"}
               </button>
 
             </div>
 
           </div>
+
+          {passwordMessage && (
+            <div
+              className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${
+                passwordMessage.type === "success"
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              {passwordMessage.text}
+            </div>
+          )}
 
           <label className="mt-4 inline-flex cursor-pointer items-center gap-2">
 

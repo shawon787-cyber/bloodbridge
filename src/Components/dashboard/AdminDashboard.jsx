@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Users,
   Droplets,
@@ -113,7 +113,14 @@ const getRelativeTime = (date) => {
 export default function AdminDashboard() {
  const [recentUsers, setRecentUsers] = useState([]);
 const [usersLoading, setUsersLoading] = useState(true);
- const [currentTime, setCurrentTime] = useState(Date.now());
+  const [recentRequests, setRecentRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState(false);
+  const [totalDonors, setTotalDonors] = useState(null);
+  const [totalDonorsError, setTotalDonorsError] = useState(false);
+  const [totalRequests, setTotalRequests] = useState(null);
+  const [totalRequestsError, setTotalRequestsError] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
 
 useEffect(() => {
@@ -166,6 +173,109 @@ useEffect(() => {
 
   fetchRecentUsers();
 }, []);
+
+useEffect(() => {
+  const fetchTotalDonors = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/donors",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch donors: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data)) {
+        setTotalDonors(result.data.length);
+      } else {
+        setTotalDonors(0);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to fetch total donors:",
+        error
+      );
+
+      setTotalDonors(null);
+      setTotalDonorsError(true);
+    }
+  };
+
+  fetchTotalDonors();
+}, []);
+
+useEffect(() => {
+  const fetchRecentRequests = async () => {
+    try {
+      setRequestsLoading(true);
+      setRequestsError(false);
+
+      const response = await fetch(
+        "http://localhost:5000/api/donation-requests",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch donation requests: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+
+      if (
+        result.success &&
+        Array.isArray(result.data)
+      ) {
+        const latestRequests = [...result.data]
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() -
+              new Date(a.createdAt).getTime()
+          )
+          .slice(0, 4)
+          .map((req) => ({
+            id: req._id,
+            name: req.recipientName,
+            blood: req.bloodGroup,
+            hospital: req.hospitalName,
+            status: req.urgency === "Urgent" ? "Urgent" : req.status,
+            date: new Date(req.createdAt).toLocaleDateString(),
+          }));
+
+        setRecentRequests(latestRequests);
+        setTotalRequests(result.data.length);
+      } else {
+        setRecentRequests([]);
+        setTotalRequests(0);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to fetch recent blood requests:",
+        error
+      );
+
+      setRecentRequests([]);
+      setRequestsError(true);
+      setTotalRequestsError(true);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  fetchRecentRequests();
+}, []);
   const { data: session } = useSession();
   const { requests } = useDonationRequests();
 
@@ -202,32 +312,14 @@ useEffect(() => {
     },
   ];
 
-  const recentRequests = useMemo(() => {
-    return [...requests]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime()
-      )
-      .slice(0, 4)
-      .map((req) => ({
-        id: req.id,
-        name: req.recipientName,
-        blood: req.bloodGroup,
-        hospital: req.hospitalName,
-        status: req.urgency === "Urgent" ? "Urgent" : req.status,
-        date: new Date(req.createdAt).toLocaleDateString(),
-      }));
-  }, [requests]);
-
-  /* =========================================================
-     STATISTICS
-  ========================================================= */
-
   const stats = [
     {
       label: "Total Donors",
-      value: "3,204",
+      value: totalDonors === null
+        ? totalDonorsError
+          ? "—"
+          : "Loading..."
+        : String(totalDonors),
       change: "+12.5%",
       positive: true,
       icon: Users,
@@ -241,7 +333,11 @@ useEffect(() => {
     },
     {
       label: "Total Requests",
-      value: String(requestStats.total),
+      value: totalRequests === null
+        ? totalRequestsError
+          ? "—"
+          : "Loading..."
+        : String(totalRequests),
       change: "+5.4%",
       positive: true,
       icon: Droplets,
@@ -597,60 +693,108 @@ useEffect(() => {
 
               <tbody>
 
-                {recentRequests.map((request) => (
-                  <tr
-                    key={request.id}
-                    className="border-b border-[#F8FAFC] last:border-0 hover:bg-[#FFF7F8]"
-                  >
+                {requestsLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <tr
+                      key={index}
+                      className="border-b border-[#F8FAFC] last:border-0"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="space-y-2">
+                          <div className="h-3.5 w-32 rounded bg-slate-200" />
+                          <div className="h-2.5 w-24 rounded bg-slate-100" />
+                        </div>
+                      </td>
 
-                    <td className="px-5 py-4">
+                      <td className="px-5 py-4">
+                        <div className="h-6 w-10 rounded-lg bg-slate-200" />
+                      </td>
 
-                      <div>
-                        <p className="text-sm font-bold text-[#111827]">
-                          {request.name}
-                        </p>
+                      <td className="px-5 py-4">
+                        <div className="h-3 w-28 rounded bg-slate-100" />
+                      </td>
 
-                        <p className="mt-0.5 text-[10px] text-[#94A3B8]">
-                          {request.id}
-                        </p>
-                      </div>
+                      <td className="px-5 py-4">
+                        <div className="h-5 w-16 rounded-full bg-slate-200" />
+                      </td>
 
+                      <td className="px-5 py-4">
+                        <div className="h-3 w-16 rounded bg-slate-100" />
+                      </td>
+                    </tr>
+                  ))
+                ) : requestsError ? (
+                  <tr className="border-b border-[#F8FAFC]">
+                    <td colSpan={5} className="px-5 py-8 text-center">
+                      <p className="text-sm font-medium text-[#64748B]">
+                        Failed to load blood requests.
+                      </p>
                     </td>
-
-                    <td className="px-5 py-4">
-
-                      <span className="inline-flex rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-black text-[#D62839]">
-                        {request.blood}
-                      </span>
-
-                    </td>
-
-                    <td className="px-5 py-4 text-xs text-[#64748B]">
-                      {request.hospital}
-                    </td>
-
-                    <td className="px-5 py-4">
-
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                          request.status === "Urgent"
-                            ? "bg-red-50 text-red-600"
-                            : request.status === "Pending"
-                            ? "bg-amber-50 text-amber-600"
-                            : "bg-emerald-50 text-emerald-600"
-                        }`}
-                      >
-                        {request.status}
-                      </span>
-
-                    </td>
-
-                    <td className="px-5 py-4 text-xs text-[#94A3B8]">
-                      {request.date}
-                    </td>
-
                   </tr>
-                ))}
+                ) : recentRequests.length === 0 ? (
+                  <tr className="border-b border-[#F8FAFC]">
+                    <td colSpan={5} className="px-5 py-8 text-center">
+                      <p className="text-sm font-medium text-[#64748B]">
+                        No blood requests found.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  recentRequests.map((request) => (
+                    <tr
+                      key={request.id}
+                      className="border-b border-[#F8FAFC] last:border-0 hover:bg-[#FFF7F8]"
+                    >
+
+                      <td className="px-5 py-4">
+
+                        <div>
+                          <p className="text-sm font-bold text-[#111827]">
+                            {request.name}
+                          </p>
+
+                          <p className="mt-0.5 text-[10px] text-[#94A3B8]">
+                            {request.id}
+                          </p>
+                        </div>
+
+                      </td>
+
+                      <td className="px-5 py-4">
+
+                        <span className="inline-flex rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-black text-[#D62839]">
+                          {request.blood}
+                        </span>
+
+                      </td>
+
+                      <td className="px-5 py-4 text-xs text-[#64748B]">
+                        {request.hospital}
+                      </td>
+
+                      <td className="px-5 py-4">
+
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            request.status === "Urgent"
+                              ? "bg-red-50 text-red-600"
+                              : request.status === "Pending"
+                              ? "bg-amber-50 text-amber-600"
+                              : "bg-emerald-50 text-emerald-600"
+                          }`}
+                        >
+                          {request.status}
+                        </span>
+
+                      </td>
+
+                      <td className="px-5 py-4 text-xs text-[#94A3B8]">
+                        {request.date}
+                      </td>
+
+                    </tr>
+                  ))
+                )}
 
               </tbody>
 

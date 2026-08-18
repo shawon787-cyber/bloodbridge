@@ -20,29 +20,20 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import districtsRaw from "@/data/districts.json";
+import upazilasRaw from "@/data/upazilas.json";
 
 const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-const districts = [
-  "Dhaka",
-  "Chattogram",
-  "Rajshahi",
-  "Khulna",
-  "Sylhet",
-  "Mymensingh",
-  "Barisal",
-  "Rangpur",
-];
+const allDistricts =
+  districtsRaw.find((item) => item.type === "table" && item.name === "districts")
+    ?.data || [];
 
-const upazilas = [
-  "Dhaka Sadar",
-  "Chattogram Sadar",
-  "Rajshahi Sadar",
-  "Khulna Sadar",
-  "Sylhet Sadar",
-  "Mymensingh Sadar",
-];
+const allUpazilas =
+  upazilasRaw.find((item) => item.type === "table" && item.name === "upazilas")
+    ?.data || [];
 
 export default function AdminProfile() {
   const { data: session, isPending } = useSession();
@@ -50,7 +41,6 @@ export default function AdminProfile() {
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
-  const [savedImage, setSavedImage] = useState("");
   const [imageError, setImageError] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -59,6 +49,8 @@ export default function AdminProfile() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState(null);
 
   const [passwordData, setPasswordData] = useState({
     current: "",
@@ -67,37 +59,75 @@ export default function AdminProfile() {
   });
 
   const [passwordMessage, setPasswordMessage] = useState(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     image: "",
-    phone: "+880 1711-000000",
-    bloodGroup: "A+",
-    location: "Dhaka",
-    district: "Dhaka",
-    upazila: "Dhaka Sadar",
+    phone: "",
+    bloodGroup: "",
+    location: "",
+    district: "",
+    districtId: "",
+    districtName: "",
+    districtBnName: "",
+    upazila: "",
+    upazilaId: "",
+    upazilaName: "",
   });
 
   /* ============================================================
-     LOAD SESSION
+     FETCH PROFILE FROM BACKEND
   ============================================================ */
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
-    const userImage = user.image || "";
+    const fetchProfile = async () => {
+      setIsLoadingProfile(true);
+      setProfileError(null);
 
-    setFormData((prev) => ({
-      ...prev,
-      fullName: user.name || "",
-      email: user.email || "",
-      image: userImage,
-    }));
+      try {
+        const response = await fetch(
+          `http://localhost:5000/api/user/${user.id}`
+        );
 
-    setImagePreview(userImage);
-    setSavedImage(userImage);
-    setImageError(false);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch profile: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const data = result.data;
+          const userImage = data.image || user.image || "";
+
+          setFormData({
+            fullName: data.name || "",
+            email: data.email || "",
+            image: userImage,
+            phone: data.phone || "",
+            bloodGroup: data.bloodGroup || "",
+            location: data.districtName || data.district || "",
+            district: data.district || data.districtName || "",
+            districtId: data.districtId || "",
+            districtName: data.districtName || "",
+            districtBnName: data.districtBnName || "",
+            upazila: data.upazila || data.upazilaName || "",
+            upazilaId: data.upazilaId || "",
+            upazilaName: data.upazilaName || "",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile:", error);
+        setProfileError("Failed to load profile data.");
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchProfile();
   }, [user]);
 
   /* ============================================================
@@ -110,6 +140,48 @@ export default function AdminProfile() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+
+    setSaveMessage(null);
+  };
+
+  /* ============================================================
+     DISTRICT CHANGE
+  ============================================================ */
+
+  const handleDistrictChange = (e) => {
+    const districtName = e.target.value;
+    const district = allDistricts.find((d) => d.name === districtName);
+
+    setFormData((prev) => ({
+      ...prev,
+      district: districtName,
+      districtId: district?.id || "",
+      districtName: district?.name || districtName,
+      districtBnName: district?.bn_name || "",
+      upazila: "",
+      upazilaId: "",
+      upazilaName: "",
+    }));
+
+    setSaveMessage(null);
+  };
+
+  /* ============================================================
+     UPAZILA CHANGE
+  ============================================================ */
+
+  const handleUpazilaChange = (e) => {
+    const upazilaName = e.target.value;
+    const upazila = allUpazilas.find(
+      (u) => u.name === upazilaName && u.district_id === formData.districtId
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      upazila: upazilaName,
+      upazilaId: upazila?.id || "",
+      upazilaName: upazila?.name || upazilaName,
     }));
 
     setSaveMessage(null);
@@ -167,7 +239,7 @@ export default function AdminProfile() {
     setPasswordMessage(null);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (
       !passwordData.current ||
       !passwordData.newPassword ||
@@ -190,16 +262,42 @@ export default function AdminProfile() {
       return;
     }
 
-    setPasswordMessage({
-      type: "success",
-      text: "Password changed successfully.",
-    });
+    setIsUpdatingPassword(true);
+    setPasswordMessage(null);
 
-    setPasswordData({
-      current: "",
-      newPassword: "",
-      confirm: "",
-    });
+    try {
+      const { error } = await authClient.changePassword({
+        currentPassword: passwordData.current,
+        newPassword: passwordData.newPassword,
+      });
+
+      if (error) {
+        setPasswordMessage({
+          type: "error",
+          text: error.message || "Failed to update password.",
+        });
+      } else {
+        setPasswordMessage({
+          type: "success",
+          text: "Password updated successfully.",
+        });
+
+        setPasswordData({
+          current: "",
+          newPassword: "",
+          confirm: "",
+        });
+
+        toast.success("Password updated successfully");
+      }
+    } catch (error) {
+      setPasswordMessage({
+        type: "error",
+        text: "Failed to update password.",
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   /* ============================================================
@@ -208,7 +306,6 @@ export default function AdminProfile() {
 
   const handleEdit = () => {
     setSavedFormData({ ...formData });
-    setSavedImage(imagePreview);
     setSaveMessage(null);
     setIsEditing(true);
   };
@@ -220,23 +317,105 @@ export default function AdminProfile() {
   const handleSave = async (e) => {
     e.preventDefault();
 
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
     setIsSaving(true);
     setSaveMessage(null);
 
-    
+    try {
+      const payload = {
+        name: formData.fullName,
+        image: formData.image,
+        phone: formData.phone,
+        bloodGroup: formData.bloodGroup,
+        district: formData.district,
+        districtId: formData.districtId,
+        districtName: formData.districtName,
+        districtBnName: formData.districtBnName,
+        upazila: formData.upazila,
+        upazilaId: formData.upazilaId,
+        upazilaName: formData.upazilaName,
+      };
 
-    setTimeout(() => {
-      setSavedFormData({ ...formData });
-      setSavedImage(imagePreview);
-      setSelectedImage(null);
-      setIsEditing(false);
+      const response = await fetch(
+        `http://localhost:5000/api/users/${user.id}/profile`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const updatedUser = result.data;
+        const updatedImage = updatedUser.image || formData.image;
+
+        setFormData({
+          fullName: updatedUser.name || "",
+          email: updatedUser.email || "",
+          image: updatedImage,
+          phone: updatedUser.phone || "",
+          bloodGroup: updatedUser.bloodGroup || "",
+          location: updatedUser.districtName || updatedUser.district || "",
+          district: updatedUser.district || updatedUser.districtName || "",
+          districtId: updatedUser.districtId || "",
+          districtName: updatedUser.districtName || "",
+          districtBnName: updatedUser.districtBnName || "",
+          upazila: updatedUser.upazila || updatedUser.upazilaName || "",
+          upazilaId: updatedUser.upazilaId || "",
+          upazilaName: updatedUser.upazilaName || "",
+        });
+
+        setSelectedImage(null);
+        setSavedFormData({ ...formData });
+        setIsEditing(false);
+
+        toast.success("Profile updated successfully");
+
+        const refreshed = await fetch(
+          `http://localhost:5000/api/user/${user.id}`
+        );
+
+        if (refreshed.ok) {
+          const refreshedResult = await refreshed.json();
+
+          if (refreshedResult.success && refreshedResult.data) {
+            const fresh = refreshedResult.data;
+            const freshImage = fresh.image || updatedImage;
+
+            setFormData({
+              fullName: fresh.name || "",
+              email: fresh.email || "",
+              image: freshImage,
+              phone: fresh.phone || "",
+              bloodGroup: fresh.bloodGroup || "",
+              location: fresh.districtName || fresh.district || "",
+              district: fresh.district || fresh.districtName || "",
+              districtId: fresh.districtId || "",
+              districtName: fresh.districtName || "",
+              districtBnName: fresh.districtBnName || "",
+              upazila: fresh.upazila || fresh.upazilaName || "",
+              upazilaId: fresh.upazilaId || "",
+              upazilaName: fresh.upazilaName || "",
+            });
+          }
+        }
+      } else {
+        toast.error(result.message || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Profile update error:", error);
+      toast.error("Failed to update profile");
+    } finally {
       setIsSaving(false);
-
-      setSaveMessage({
-        type: "success",
-        text: "Profile updated successfully.",
-      });
-    }, 800);
+    }
   };
 
   /* ============================================================
@@ -248,14 +427,11 @@ export default function AdminProfile() {
       setFormData(savedFormData);
     }
 
-    if (
-      imagePreview?.startsWith("blob:") &&
-      imagePreview !== savedImage
-    ) {
+    if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
 
-    setImagePreview(savedImage || "");
+    setImagePreview("");
     setSelectedImage(null);
     setImageError(false);
     setIsEditing(false);
@@ -286,6 +462,8 @@ export default function AdminProfile() {
      FIRST LETTER
   ============================================================ */
 
+  const displayImage = selectedImage ? imagePreview : (formData.image || user?.image || "");
+
   const firstLetter =
     formData.fullName?.trim()?.charAt(0)?.toUpperCase() || "A";
 
@@ -293,15 +471,21 @@ export default function AdminProfile() {
      JOINED DATE
   ============================================================ */
 
-  const joinedDate = user?.createdAt
-    ? formatDate(user.createdAt)
-    : "01 Jan 2024";
+  const joinedDate = user?.createdAt ? formatDate(user.createdAt) : "Not provided";
 
   /* ============================================================
      LOADING
   ============================================================ */
 
   if (isPending) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
+      </div>
+    );
+  }
+
+  if (isLoadingProfile) {
     return (
       <div className="flex min-h-[500px] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
@@ -342,9 +526,9 @@ export default function AdminProfile() {
 
                 <div className="relative h-28 w-28 sm:h-32 sm:w-32">
 
-                  {imagePreview && !imageError ? (
+                  {displayImage && !imageError ? (
                     <img
-                      src={imagePreview}
+                      src={displayImage}
                       alt={formData.fullName || "Admin"}
                       onError={handleImageError}
                       className="h-full w-full rounded-full border-[5px] border-white/90 object-cover shadow-xl"
@@ -392,12 +576,12 @@ export default function AdminProfile() {
                 <div className="flex flex-col items-center gap-2 sm:flex-row">
 
                   <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-                    {formData.fullName || "Administrator"}
+                    {formData.fullName || "User"}
                   </h1>
 
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur-sm">
                     <ShieldCheck size={14} />
-                    Administrator
+                    {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "User"}
                   </span>
 
                 </div>
@@ -411,7 +595,7 @@ export default function AdminProfile() {
 
                   <span className="flex items-center justify-center gap-2 sm:justify-start">
                     <MapPin size={15} />
-                    {formData.location}, Bangladesh
+                    {formData.location ? `${formData.location}, Bangladesh` : "Bangladesh"}
                   </span>
 
                 </div>
@@ -476,13 +660,13 @@ export default function AdminProfile() {
 
             <Stat
               icon={<ShieldCheck size={21} />}
-              value="Administrator"
+              value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "User"}
               label="Account Role"
             />
 
             <Stat
               icon={<CheckCircle2 size={21} />}
-              value="Active"
+              value={user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : "Not provided"}
               label="Account Status"
             />
 
@@ -514,6 +698,12 @@ export default function AdminProfile() {
             }`}
           >
             {saveMessage.text}
+          </div>
+        )}
+
+        {profileError && (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {profileError}
           </div>
         )}
 
@@ -557,14 +747,14 @@ export default function AdminProfile() {
               <InfoRow
                 icon={<ShieldCheck size={16} />}
                 label="Role"
-                value="Administrator"
+                value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "User"}
                 highlight
               />
 
               <InfoRow
                 icon={<CheckCircle2 size={16} />}
                 label="Status"
-                value="Active"
+                value={user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : "Not provided"}
               />
 
               <InfoRow
@@ -576,7 +766,7 @@ export default function AdminProfile() {
               <InfoRow
                 icon={<MapPin size={16} />}
                 label="Location"
-                value={`${formData.location}, Bangladesh`}
+                value={`${formData.location || "Not provided"}, Bangladesh`}
               />
 
             </div>
@@ -591,7 +781,7 @@ export default function AdminProfile() {
                   </p>
 
                   <p className="mt-1 text-2xl font-black text-[#D62839]">
-                    Admin
+                    {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "User"}
                   </p>
                 </div>
 
@@ -659,14 +849,23 @@ export default function AdminProfile() {
                   disabled={!isEditing}
                 />
 
-                <ProfileField
-                  name="email"
-                  label="Email Address"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                />
+                <div>
+                  <label className="mb-2 block text-xs font-bold text-slate-600">
+                    Email Address
+                  </label>
+
+                  <input
+                    type="email"
+                    value={formData.email}
+                    readOnly
+                    disabled
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 text-sm font-medium text-slate-500 outline-none cursor-not-allowed"
+                  />
+
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    Email address cannot be changed.
+                  </p>
+                </div>
 
                 <ProfileField
                   name="phone"
@@ -686,8 +885,6 @@ export default function AdminProfile() {
                   disabled={!isEditing}
                 />
 
-                
-
                 <div>
 
                   <label className="mb-2 block text-xs font-bold text-slate-600">
@@ -697,13 +894,14 @@ export default function AdminProfile() {
                   <select
                     name="district"
                     value={formData.district}
-                    onChange={handleChange}
+                    onChange={handleDistrictChange}
                     disabled={!isEditing}
                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-medium text-slate-700 outline-none transition focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#FDECEF] disabled:cursor-not-allowed disabled:text-slate-500"
                   >
-                    {districts.map((district) => (
-                      <option key={district} value={district}>
-                        {district}
+                    <option value="">Select district</option>
+                    {allDistricts.map((district) => (
+                      <option key={district.id} value={district.name}>
+                        {district.name}
                       </option>
                     ))}
                   </select>
@@ -719,15 +917,18 @@ export default function AdminProfile() {
                   <select
                     name="upazila"
                     value={formData.upazila}
-                    onChange={handleChange}
-                    disabled={!isEditing}
+                    onChange={handleUpazilaChange}
+                    disabled={!isEditing || !formData.districtId}
                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-medium text-slate-700 outline-none transition focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#FDECEF] disabled:cursor-not-allowed disabled:text-slate-500"
                   >
-                    {upazilas.map((upazila) => (
-                      <option key={upazila} value={upazila}>
-                        {upazila}
-                      </option>
-                    ))}
+                    <option value="">Select upazila</option>
+                    {allUpazilas
+                      .filter((u) => u.district_id === formData.districtId)
+                      .map((upazila) => (
+                        <option key={upazila.id} value={upazila.name}>
+                          {upazila.name}
+                        </option>
+                      ))}
                   </select>
 
                 </div>
@@ -857,9 +1058,10 @@ export default function AdminProfile() {
               <button
                 type="button"
                 onClick={handleChangePassword}
-                className="h-11 w-full rounded-xl bg-[#D62839] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A] lg:w-auto"
+                disabled={isUpdatingPassword}
+                className="h-11 w-full rounded-xl bg-[#D62839] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#A4161A] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto"
               >
-                Update Password
+                {isUpdatingPassword ? "Updating Password..." : "Update Password"}
               </button>
 
             </div>
