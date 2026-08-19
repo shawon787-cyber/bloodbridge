@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useSession, authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { uploadProfileImage, getProfileImageUrl } from "@/lib/uploadProfileImage";
 import districtsRaw from "@/data/districts.json";
 import upazilasRaw from "@/data/upazilas.json";
 
@@ -51,6 +52,9 @@ export default function AdminProfile() {
   const [saveMessage, setSaveMessage] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState("");
 
   const [passwordData, setPasswordData] = useState({
     current: "",
@@ -118,6 +122,10 @@ export default function AdminProfile() {
             upazilaId: data.upazilaId || "",
             upazilaName: data.upazilaName || "",
           });
+
+          if (userImage) {
+            setProfileImageUrl(getProfileImageUrl(userImage));
+          }
         }
       } catch (error) {
         console.error("Failed to fetch profile:", error);
@@ -191,19 +199,19 @@ export default function AdminProfile() {
      IMAGE CHANGE
   ============================================================ */
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file.");
+      toast.error("Please select a valid image file.");
       e.target.value = "";
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB.");
+      toast.error("Image size must be less than 5MB.");
       e.target.value = "";
       return;
     }
@@ -218,10 +226,29 @@ export default function AdminProfile() {
     setImagePreview(previewUrl);
     setImageError(false);
 
-    setFormData((prev) => ({
-      ...prev,
-      image: previewUrl,
-    }));
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const imageUrl = await uploadProfileImage(file, user.id);
+      setProfileImageUrl(getProfileImageUrl(imageUrl));
+      setSelectedImage(null);
+      setImagePreview("");
+      toast.success("Profile image updated successfully");
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast.error(error.message || "Failed to upload profile image");
+      setSelectedImage(null);
+      setImagePreview("");
+    } finally {
+      setIsUploadingImage(false);
+    }
+
+    e.target.value = "";
   };
 
   /* ============================================================
@@ -328,7 +355,6 @@ export default function AdminProfile() {
     try {
       const payload = {
         name: formData.fullName,
-        image: formData.image,
         phone: formData.phone,
         bloodGroup: formData.bloodGroup,
         district: formData.district,
@@ -353,66 +379,73 @@ export default function AdminProfile() {
 
       const result = await response.json();
 
-      if (result.success && result.data) {
-        const updatedUser = result.data;
-        const updatedImage = updatedUser.image || formData.image;
-
-        setFormData({
-          fullName: updatedUser.name || "",
-          email: updatedUser.email || "",
-          image: updatedImage,
-          phone: updatedUser.phone || "",
-          bloodGroup: updatedUser.bloodGroup || "",
-          location: updatedUser.districtName || updatedUser.district || "",
-          district: updatedUser.district || updatedUser.districtName || "",
-          districtId: updatedUser.districtId || "",
-          districtName: updatedUser.districtName || "",
-          districtBnName: updatedUser.districtBnName || "",
-          upazila: updatedUser.upazila || updatedUser.upazilaName || "",
-          upazilaId: updatedUser.upazilaId || "",
-          upazilaName: updatedUser.upazilaName || "",
-        });
-
-        setSelectedImage(null);
-        setSavedFormData({ ...formData });
-        setIsEditing(false);
-
-        toast.success("Profile updated successfully");
-
-        const refreshed = await fetch(
-          `http://localhost:5000/api/user/${user.id}`
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Failed to update profile"
         );
-
-        if (refreshed.ok) {
-          const refreshedResult = await refreshed.json();
-
-          if (refreshedResult.success && refreshedResult.data) {
-            const fresh = refreshedResult.data;
-            const freshImage = fresh.image || updatedImage;
-
-            setFormData({
-              fullName: fresh.name || "",
-              email: fresh.email || "",
-              image: freshImage,
-              phone: fresh.phone || "",
-              bloodGroup: fresh.bloodGroup || "",
-              location: fresh.districtName || fresh.district || "",
-              district: fresh.district || fresh.districtName || "",
-              districtId: fresh.districtId || "",
-              districtName: fresh.districtName || "",
-              districtBnName: fresh.districtBnName || "",
-              upazila: fresh.upazila || fresh.upazilaName || "",
-              upazilaId: fresh.upazilaId || "",
-              upazilaName: fresh.upazilaName || "",
-            });
-          }
-        }
-      } else {
-        toast.error(result.message || "Failed to update profile");
       }
+
+      const updatedUser = result.data;
+
+      setFormData({
+        fullName: updatedUser.name || "",
+        email: updatedUser.email || "",
+        phone: updatedUser.phone || "",
+        bloodGroup: updatedUser.bloodGroup || "",
+        location:
+          updatedUser.districtName ||
+          updatedUser.district ||
+          "",
+        district:
+          updatedUser.district ||
+          updatedUser.districtName ||
+          "",
+        districtId: updatedUser.districtId || "",
+        districtName: updatedUser.districtName || "",
+        districtBnName: updatedUser.districtBnName || "",
+        upazila:
+          updatedUser.upazila ||
+          updatedUser.upazilaName ||
+          "",
+        upazilaId: updatedUser.upazilaId || "",
+        upazilaName: updatedUser.upazilaName || "",
+      });
+
+      const updatedImage = updatedUser.image || profileImageUrl || "";
+      if (updatedImage) {
+        setProfileImageUrl(getProfileImageUrl(updatedImage));
+      }
+
+      setSavedFormData({
+        fullName: updatedUser.name || "",
+        email: updatedUser.email || "",
+        phone: updatedUser.phone || "",
+        bloodGroup: updatedUser.bloodGroup || "",
+        location:
+          updatedUser.districtName ||
+          updatedUser.district ||
+          "",
+        district:
+          updatedUser.district ||
+          updatedUser.districtName ||
+          "",
+        districtId: updatedUser.districtId || "",
+        districtName: updatedUser.districtName || "",
+        districtBnName: updatedUser.districtBnName || "",
+        upazila:
+          updatedUser.upazila ||
+          updatedUser.upazilaName ||
+          "",
+        upazilaId: updatedUser.upazilaId || "",
+        upazilaName: updatedUser.upazilaName || "",
+      });
+
+      setIsEditing(false);
+
+      toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Profile update error:", error);
-      toast.error("Failed to update profile");
+      toast.error(error.message || "Failed to update profile");
     } finally {
       setIsSaving(false);
     }
@@ -462,7 +495,7 @@ export default function AdminProfile() {
      FIRST LETTER
   ============================================================ */
 
-  const displayImage = selectedImage ? imagePreview : (formData.image || user?.image || "");
+  const displayImage = selectedImage ? imagePreview : (profileImageUrl || user?.image || "");
 
   const firstLetter =
     formData.fullName?.trim()?.charAt(0)?.toUpperCase() || "A";
@@ -549,13 +582,17 @@ export default function AdminProfile() {
 
                   <label
                     htmlFor="admin-profile-image"
-                    title="Change profile photo"
-                    className="absolute bottom-1 right-1 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-[#D62839] text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-[#A4161A] active:scale-95"
+                    title={isUploadingImage ? "Uploading..." : "Change profile photo"}
+                    className={`absolute bottom-1 right-1 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-[#D62839] text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-[#A4161A] active:scale-95 ${isUploadingImage ? "opacity-70 cursor-not-allowed" : ""}`}
                   >
-                    <Camera size={17} />
+                    {isUploadingImage ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Camera size={17} />
+                    )}
 
                     <span className="sr-only">
-                      Change profile photo
+                      {isUploadingImage ? "Uploading..." : "Change profile photo"}
                     </span>
                   </label>
 
@@ -564,6 +601,7 @@ export default function AdminProfile() {
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
                     onChange={handleImageChange}
+                    disabled={isUploadingImage}
                     className="hidden"
                   />
                 </div>

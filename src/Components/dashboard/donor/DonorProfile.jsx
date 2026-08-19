@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useSession, authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { uploadProfileImage, getProfileImageUrl } from "@/lib/uploadProfileImage";
 
 export default function DonorProfile() {
   const { data: session, isPending } = useSession();
@@ -56,6 +57,9 @@ export default function DonorProfile() {
   const [saveMessage, setSaveMessage] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState("");
 
   const [passwordMessage, setPasswordMessage] = useState(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -94,6 +98,10 @@ export default function DonorProfile() {
             bloodGroup: data.bloodGroup || "",
             location: data.districtName || data.district || "",
           });
+
+          if (userImage) {
+            setProfileImageUrl(getProfileImageUrl(userImage));
+          }
         }
       } catch (error) {
         console.error("Failed to fetch profile:", error);
@@ -123,19 +131,19 @@ export default function DonorProfile() {
      HANDLE PROFILE IMAGE
   ============================================================ */
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file.");
+      toast.error("Please select a valid image file.");
       e.target.value = "";
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB.");
+      toast.error("Image size must be less than 5MB.");
       e.target.value = "";
       return;
     }
@@ -150,10 +158,29 @@ export default function DonorProfile() {
     setImagePreview(previewUrl);
     setImageError(false);
 
-    setFormData((prev) => ({
-      ...prev,
-      image: previewUrl,
-    }));
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const imageUrl = await uploadProfileImage(file, user.id);
+      setProfileImageUrl(getProfileImageUrl(imageUrl));
+      setSelectedImage(null);
+      setImagePreview("");
+      toast.success("Profile image updated successfully");
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast.error(error.message || "Failed to upload profile image");
+      setSelectedImage(null);
+      setImagePreview("");
+    } finally {
+      setIsUploadingImage(false);
+    }
+
+    e.target.value = "";
   };
 
   /* ============================================================
@@ -260,7 +287,6 @@ export default function DonorProfile() {
     try {
       const payload = {
         name: formData.fullName,
-        image: formData.image,
         phone: formData.phone,
         bloodGroup: formData.bloodGroup,
       };
@@ -280,15 +306,18 @@ export default function DonorProfile() {
 
       if (result.success && result.data) {
         const updatedUser = result.data;
-        const updatedImage = updatedUser.image || formData.image;
+        const updatedImage = updatedUser.image || profileImageUrl || "";
 
         setFormData({
           fullName: updatedUser.name || "",
           email: updatedUser.email || "",
-          image: updatedImage,
           phone: updatedUser.phone || "",
           bloodGroup: updatedUser.bloodGroup || "",
         });
+
+        if (updatedImage) {
+          setProfileImageUrl(getProfileImageUrl(updatedImage));
+        }
 
         setSelectedImage(null);
         setSavedFormData({ ...formData });
@@ -310,10 +339,13 @@ export default function DonorProfile() {
             setFormData({
               fullName: fresh.name || "",
               email: fresh.email || "",
-              image: freshImage,
               phone: fresh.phone || "",
               bloodGroup: fresh.bloodGroup || "",
             });
+
+            if (freshImage) {
+              setProfileImageUrl(getProfileImageUrl(freshImage));
+            }
           }
         }
       } else {
@@ -373,7 +405,7 @@ export default function DonorProfile() {
   const firstLetter =
     formData.fullName?.trim()?.charAt(0)?.toUpperCase() || "U";
 
-  const displayImage = selectedImage ? imagePreview : (formData.image || user?.image || "");
+  const displayImage = selectedImage ? imagePreview : (profileImageUrl || user?.image || "");
 
   /* ============================================================
      LOADING
@@ -459,13 +491,17 @@ export default function DonorProfile() {
 
                   <label
                     htmlFor="profile-image"
-                    title="Change profile photo"
-                    className="absolute bottom-1 right-1 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-[#D62839] text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-[#A4161A] active:scale-95"
+                    title={isUploadingImage ? "Uploading..." : "Change profile photo"}
+                    className={`absolute bottom-1 right-1 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-[#D62839] text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-[#A4161A] active:scale-95 ${isUploadingImage ? "opacity-70 cursor-not-allowed" : ""}`}
                   >
-                    <Camera size={17} />
+                    {isUploadingImage ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Camera size={17} />
+                    )}
 
                     <span className="sr-only">
-                      Change profile photo
+                      {isUploadingImage ? "Uploading..." : "Change profile photo"}
                     </span>
                   </label>
 
@@ -476,6 +512,7 @@ export default function DonorProfile() {
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
                     onChange={handleImageChange}
+                    disabled={isUploadingImage}
                     className="hidden"
                   />
                 </div>
