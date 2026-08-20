@@ -7,6 +7,8 @@ import {
   CalendarDays,
   CheckCircle2,
   Edit3,
+  Eye,
+  EyeOff,
   Heart,
   HeartPulse,
   Lock,
@@ -35,7 +37,6 @@ export default function VolunteerProfile() {
   const [imageError, setImageError] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const [isAvailable, setIsAvailable] = useState(true);
 
@@ -209,20 +210,16 @@ export default function VolunteerProfile() {
       !passwordData.newPassword ||
       !passwordData.confirm
     ) {
-      setPasswordMessage({
-        type: "error",
-        text: "Please fill in all fields.",
-      });
-
+      const msg = "Please fill in all fields.";
+      setPasswordMessage({ type: "error", text: msg });
+      toast.error(msg);
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirm) {
-      setPasswordMessage({
-        type: "error",
-        text: "New passwords do not match.",
-      });
-
+      const msg = "New passwords do not match.";
+      setPasswordMessage({ type: "error", text: msg });
+      toast.error(msg);
       return;
     }
 
@@ -236,29 +233,18 @@ export default function VolunteerProfile() {
       });
 
       if (error) {
-        setPasswordMessage({
-          type: "error",
-          text: error.message || "Failed to update password.",
-        });
+        const msg = error.message || "Failed to update password.";
+        setPasswordMessage({ type: "error", text: msg });
+        toast.error(msg);
       } else {
-        setPasswordMessage({
-          type: "success",
-          text: "Password updated successfully.",
-        });
-
-        setPasswordData({
-          current: "",
-          newPassword: "",
-          confirm: "",
-        });
-
+        setPasswordMessage({ type: "success", text: "Password updated successfully." });
+        setPasswordData({ current: "", newPassword: "", confirm: "" });
         toast.success("Password updated successfully");
       }
     } catch (error) {
-      setPasswordMessage({
-        type: "error",
-        text: "Failed to update password.",
-      });
+      const msg = "Failed to update password.";
+      setPasswordMessage({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setIsUpdatingPassword(false);
     }
@@ -1089,7 +1075,6 @@ export default function VolunteerProfile() {
               name="current"
               value={passwordData.current}
               onChange={handlePasswordChange}
-              showPassword={showPassword}
             />
 
             <PasswordField
@@ -1097,7 +1082,6 @@ export default function VolunteerProfile() {
               name="newPassword"
               value={passwordData.newPassword}
               onChange={handlePasswordChange}
-              showPassword={showPassword}
             />
 
             <PasswordField
@@ -1105,7 +1089,6 @@ export default function VolunteerProfile() {
               name="confirm"
               value={passwordData.confirm}
               onChange={handlePasswordChange}
-              showPassword={showPassword}
             />
 
             <div className="flex items-end">
@@ -1134,23 +1117,6 @@ export default function VolunteerProfile() {
               {passwordMessage.text}
             </div>
           )}
-
-          <label className="mt-4 inline-flex cursor-pointer items-center gap-2">
-
-            <input
-              type="checkbox"
-              checked={showPassword}
-              onChange={(e) =>
-                setShowPassword(e.target.checked)
-              }
-              className="h-4 w-4 rounded border-slate-300 text-[#D62839] focus:ring-[#D62839]"
-            />
-
-            <span className="text-xs font-medium text-slate-500">
-              Show passwords
-            </span>
-
-          </label>
 
         </section>
 
@@ -1358,13 +1324,9 @@ function VolunteerActivity({ date, type }) {
    PASSWORD FIELD
 ============================================================ */
 
-function PasswordField({
-  label,
-  name,
-  value,
-  onChange,
-  showPassword,
-}) {
+function PasswordField({ label, name, value, onChange }) {
+  const [show, setShow] = useState(false);
+
   return (
     <div>
 
@@ -1372,14 +1334,24 @@ function PasswordField({
         {label}
       </label>
 
-      <input
-        type={showPassword ? "text" : "password"}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={`Enter ${label.toLowerCase()}`}
-        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#D62839] focus:ring-4 focus:ring-[#FDECEF]"
-      />
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={`Enter ${label.toLowerCase()}`}
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 pr-12 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#D62839] focus:ring-4 focus:ring-[#FDECEF]"
+        />
+
+        <button
+          type="button"
+          onClick={() => setShow((prev) => !prev)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#D62839]"
+        >
+          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
 
     </div>
   );
