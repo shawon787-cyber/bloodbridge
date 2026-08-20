@@ -53,7 +53,7 @@ export default function AdminUsers() {
 
   const itemsPerPage = 5;
 
-  const roles = ["Donor", "Volunteer", "Administrator"];
+  const roles = ["Donor", "Volunteer", "Admin"];
   const statuses = ["Active", "Inactive", "Suspended"];
 
   // =========================
@@ -107,7 +107,7 @@ export default function AdminUsers() {
   ).length;
 
   const admins = users.filter(
-    (user) => user.role === "Administrator"
+    (user) => user.role === "admin"
   ).length;
 
   // =========================
@@ -124,23 +124,48 @@ export default function AdminUsers() {
   // Toggle Role
   // Donor <-> Volunteer
   // =========================
-  const handleToggleRole = () => {
-    if (!selectedUser) return;
+  const handleToggleRole = async () => {
+  if (!selectedUser) return;
 
-    if (selectedUser.role === "Administrator") {
-      return;
+  // Administrator role cannot be changed
+  if (selectedUser.role === "Admin") {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/admin/users/${selectedUser.id}/toggle-role`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || "Failed to change user role"
+      );
     }
 
-    const newRole =
-      selectedUser.role === "Donor"
-        ? "Volunteer"
-        : "Donor";
+    // Backend থেকে updated user পাওয়া যাচ্ছে
+    const backendUser = result.data;
 
+    // Backend role -> frontend display role
     const updatedUser = {
       ...selectedUser,
-      role: newRole,
+      role:
+        backendUser.role === "donor"
+          ? "Donor"
+          : backendUser.role === "volunteer"
+          ? "Volunteer"
+          : "Admin",
     };
 
+    // Users table update
     setUsers((prevUsers) =>
       prevUsers.map((user) =>
         user.id === selectedUser.id
@@ -149,24 +174,50 @@ export default function AdminUsers() {
       )
     );
 
+    // Modal update
     setSelectedUser(updatedUser);
-  };
+
+  } catch (error) {
+    console.error("Failed to toggle role:", error);
+    alert(error.message || "Failed to change user role");
+  }
+};
 
   // =========================
   // Toggle Status
   // Active <-> Suspended
   // =========================
-  const handleToggleStatus = () => {
-    if (!selectedUser) return;
+  const handleToggleStatus = async () => {
+  if (!selectedUser) return;
 
-    const newStatus =
-      selectedUser.status === "Active"
-        ? "Suspended"
-        : "Active";
+  const isActive = selectedUser.status === "Active";
+
+  try {
+    const endpoint = isActive
+      ? `http://localhost:5000/api/admin/users/${selectedUser.id}/block`
+      : `http://localhost:5000/api/admin/users/${selectedUser.id}/unblock`;
+
+    const response = await fetch(endpoint, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || "Failed to update user status"
+      );
+    }
 
     const updatedUser = {
       ...selectedUser,
-      status: newStatus,
+      status:
+        result.data.status === "blocked"
+          ? "Blocked"
+          : "Active",
     };
 
     setUsers((prevUsers) =>
@@ -178,7 +229,12 @@ export default function AdminUsers() {
     );
 
     setSelectedUser(updatedUser);
-  };
+
+  } catch (error) {
+    console.error("Failed to update status:", error);
+    alert(error.message || "Failed to update user status");
+  }
+};
 
   // =========================
   // Delete User
@@ -203,7 +259,7 @@ export default function AdminUsers() {
       ========================= */}
       <PageHeader
         title="All Users"
-        subtitle="Manage donors, volunteers and administrators across BloodBridge."
+        subtitle="Manage donors, volunteers and admin across BloodBridge."
       />
 
       {/* =========================
@@ -239,7 +295,7 @@ export default function AdminUsers() {
         />
 
         <StatCard
-          title="Administrators"
+          title="Admin"
           value={admins}
           icon={Shield}
           color="#D62839"
@@ -439,16 +495,16 @@ export default function AdminUsers() {
 
                     {/* Actions */}
                     <td className="px-5 py-4">
-                      <button
-                        type="button"
-                        className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#FFF4F5] hover:text-[#D62839]"
-                        onClick={() =>
-                          setSelectedUser(user)
-                        }
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </td>
+  {user.role?.toLowerCase() !== "admin" && (
+    <button
+      type="button"
+      className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#FFF4F5] hover:text-[#D62839]"
+      onClick={() => setSelectedUser(user)}
+    >
+      <MoreHorizontal size={16} />
+    </button>
+  )}
+</td>
 
                   </tr>
                 ))
@@ -613,70 +669,49 @@ export default function AdminUsers() {
             </div>
 
             {/* =========================
-                Action Buttons
-            ========================= */}
-            <div className="grid grid-cols-1 gap-3 border-t border-[#F1F5F9] pt-5 sm:grid-cols-2">
+    Action Buttons
+========================= */}
+{selectedUser.role !== "Admin" && (
+  <div className="grid grid-cols-1 gap-3 border-t border-[#F1F5F9] pt-5 sm:grid-cols-2">
 
-              {/* Make Donor / Volunteer */}
-              {selectedUser.role !== "Administrator" && (
-                <button
-                  type="button"
-                  onClick={handleToggleRole}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#1D4ED8]"
-                >
-                  <UserCheck size={16} />
+    {/* Donor / Volunteer Toggle */}
+    <button
+      type="button"
+      onClick={handleToggleRole}
+      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#1D4ED8]"
+    >
+      <UserCheck size={16} />
 
-                  {selectedUser.role === "Donor"
-                    ? "Make Volunteer"
-                    : "Make Donor"}
-                </button>
-              )}
+      {selectedUser.role === "Donor"
+        ? "Make Volunteer"
+        : "Make Donor"}
+    </button>
 
-              {/* Block / Activate */}
-              <button
-                type="button"
-                onClick={handleToggleStatus}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                  selectedUser.status === "Active"
-                    ? "border border-red-200 bg-white text-red-600 hover:border-red-400 hover:bg-red-50"
-                    : "bg-[#16A34A] text-white hover:bg-[#15803D]"
-                }`}
-              >
+    {/* Block / Activate */}
+    <button
+      type="button"
+      onClick={handleToggleStatus}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
+        selectedUser.status === "Active"
+          ? "border border-red-200 bg-white text-red-600 hover:border-red-400 hover:bg-red-50"
+          : "bg-[#16A34A] text-white hover:bg-[#15803D]"
+      }`}
+    >
+      {selectedUser.status === "Active" ? (
+        <>
+          <UserX size={16} />
+          Block User
+        </>
+      ) : (
+        <>
+          <UserCheck size={16} />
+          Activate User
+        </>
+      )}
+    </button>
 
-                {selectedUser.status === "Active" ? (
-                  <>
-                    <UserX size={16} />
-                    Block User
-                  </>
-                ) : (
-                  <>
-                    <UserCheck size={16} />
-                    Activate User
-                  </>
-                )}
-
-              </button>
-
-              {/* Edit */}
-              {/* <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-bold text-[#64748B] transition-colors hover:border-[#D62839] hover:text-[#D62839]"
-              >
-                <Pencil size={16} />
-                Edit
-              </button> */}
-
-              {/* Delete */}
-              {/* <button
-                type="button"
-                onClick={handleDeleteUser}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:border-red-400 hover:bg-red-50"
-              >
-                <Trash2 size={16} />
-                Delete
-              </button> */}
-
-            </div>
+  </div>
+)}
 
           </div>
         )}
