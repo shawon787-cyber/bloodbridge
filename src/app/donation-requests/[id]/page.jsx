@@ -17,7 +17,10 @@ import {
   Building2,
   ChevronRight,
   Activity,
+  CheckCircle2,
 } from "lucide-react";
+import { normalizeStatusForCompare } from "@/lib/donationRequests";
+import { toast } from "sonner";
 
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
 
@@ -41,14 +44,13 @@ const normalizeStatus = (status) => {
 
   const map = {
     pending: "Pending",
-    "in progress": "In Progress",
-    inprogress: "In Progress",
-    done: "Done",
-    completed: "Done",
-    cancelled: "Cancelled",
-    canceled: "Cancelled",
-    rejected: "Rejected",
-    urgent: "Urgent",
+  "in progress": "In Progress",
+  inprogress: "In Progress",
+  done: "Done",
+  completed: "Done",
+  cancelled: "Cancelled",
+  canceled: "Cancelled",
+  rejected: "Rejected",
   };
 
   const key = String(status).toLowerCase().replace(/\s+/g, "");
@@ -96,8 +98,12 @@ const normalizeRequest = (req) => {
   const upazilaName =
     req.upazilaName || "";
 
-  const id =
-    req._id || req.id || req.requestId || "";
+  const requestId =
+    typeof req._id === "object"
+      ? req._id.toString()
+      : String(req._id || req.id || req.requestId || "");
+
+  const id = requestId;
 
   const createdAt =
     req.createdAt || "";
@@ -281,7 +287,44 @@ export default function DonationRequestDetailsPage() {
   const [error, setError] =
     useState(null);
 
+  const [isResponding, setIsResponding] = useState(false);
+
   const id = params?.id;
+
+  const handleRespondToRequest = async () => {
+    if (!id || isResponding) return;
+    setIsResponding(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+      const res = await fetch(`${baseUrl}/api/donation-requests/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "inprogress" }),
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${res.status}: Failed to respond to request`);
+      }
+
+      const result = await res.json();
+      if (!result?.success) {
+        throw new Error(result?.message || "Failed to respond to request");
+      }
+
+      toast.success("Request moved to In Progress.");
+      
+      setDonationRequest((prev) => prev ? { ...prev, status: "inprogress", statusDisplayLabel: "In Progress" } : prev);
+    } catch (err) {
+      console.error("Failed to respond to request:", err);
+      toast.error(err.message || "Failed to respond to request. Please try again.");
+    } finally {
+      setIsResponding(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -841,19 +884,30 @@ export default function DonationRequestDetailsPage() {
 
               <button
                 type="button"
-                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#D62839] px-5 py-4 text-sm font-black text-white shadow-[0_10px_25px_rgba(214,40,57,0.16)] transition-all duration-300 hover:bg-[#B91C2C] hover:shadow-[0_14px_32px_rgba(214,40,57,0.22)] active:scale-[0.99]"
+                onClick={handleRespondToRequest}
+                disabled={isResponding}
+                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#D62839] px-5 py-4 text-sm font-black text-white shadow-[0_10px_25px_rgba(214,40,57,0.16)] transition-all duration-300 hover:bg-[#B91C2C] hover:shadow-[0_14px_32px_rgba(214,40,57,0.22)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <Droplets
-                  size={18}
-                  className="transition-transform duration-300 group-hover:scale-110"
-                />
+                {isResponding ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Responding...
+                  </>
+                ) : (
+                  <>
+                    <Droplets
+                      size={18}
+                      className="transition-transform duration-300 group-hover:scale-110"
+                    />
 
-                Respond to Request
+                    Respond to Request
 
-                <ChevronRight
-                  size={17}
-                  className="transition-transform duration-300 group-hover:translate-x-1"
-                />
+                    <ChevronRight
+                      size={17}
+                      className="transition-transform duration-300 group-hover:translate-x-1"
+                    />
+                  </>
+                )}
               </button>
 
               <p className="mt-3 text-center text-[11px] font-medium text-slate-400">

@@ -29,3 +29,19 @@ export const createDonationRequest = async (donationRequestData) => {
     }
     return res.json();
 };
+
+export const updateDonationRequestStatus = async (requestId, status) => {
+    const res = await fetch(`${baseUrl}/api/donation-requests/${requestId}/status`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+        cache: 'no-store',
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${res.status}: Failed to update donation request status`);
+    }
+    return res.json();
+};

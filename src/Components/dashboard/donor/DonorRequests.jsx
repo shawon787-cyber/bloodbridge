@@ -18,6 +18,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { normalizeStatusForCompare, getStatusDisplayLabel } from "@/lib/donationRequests";
+
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 
 
@@ -50,23 +52,25 @@ export default function MyDonationRequests() {
       return myDonationRequests;
     }
 
+    const normalizedTab = normalizeStatusForCompare(activeTab);
     return myDonationRequests.filter(
-      (request) => request.status === activeTab
+      (request) => normalizeStatusForCompare(request.status) === normalizedTab
     );
   }, [activeTab, myDonationRequests]);
 
   const getStatusStyle = (status) => {
-    switch (status) {
-      case "Pending":
+    const normalized = normalizeStatusForCompare(status);
+    switch (normalized) {
+      case "pending":
         return "bg-amber-50 text-amber-700 border-amber-100";
 
-      case "In Progress":
+      case "inprogress":
         return "bg-blue-50 text-blue-700 border-blue-100";
 
-      case "Done":
+      case "done":
         return "bg-emerald-50 text-emerald-700 border-emerald-100";
 
-      case "Cancelled":
+      case "cancelled":
         return "bg-red-50 text-red-600 border-red-100";
 
       default:
@@ -280,7 +284,7 @@ export default function MyDonationRequests() {
                     ${getStatusStyle(request.status)}
                   `}
                 >
-                  {request.status}
+                  {getStatusDisplayLabel(request.status)}
                 </span>
               </div>
 
@@ -399,8 +403,8 @@ export default function MyDonationRequests() {
 
                   {/* Edit */}
 
-                  {request.status !== "Done" &&
-                    request.status !== "Cancelled" && (
+                  {normalizeStatusForCompare(request.status) !== "done" &&
+                    normalizeStatusForCompare(request.status) !== "cancelled" && (
                       <button
                         type="button"
                         className="

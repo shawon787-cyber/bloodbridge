@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import RequestCard from "@/Components/shared/RequestCard";
 import { useDonationRequests } from "@/context/DonationRequestContext";
+import LatestPendingRequests from "./LatestPendingRequests";
 
 const BloodRequestsSection = () => {
   const { requests, isInitialized } = useDonationRequests();
@@ -97,23 +98,9 @@ const BloodRequestsSection = () => {
 
 
         {/* ================= REQUEST CARDS ================= */}
+        <LatestPendingRequests />
 
-        {!isInitialized ? (
-          <div className="mt-10 flex justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
-          </div>
-        ) : (
-          <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-
-            {latestRequests.map((request) => (
-              <RequestCard
-                key={request.id}
-                request={request}
-              />
-            ))}
-
-          </div>
-        )}
+        
 
 
         {/* ================= BOTTOM ================= */}

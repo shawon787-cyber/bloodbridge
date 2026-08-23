@@ -1,7 +1,10 @@
 "use client";
 
+import { getStatusDisplayLabel } from "@/lib/donationRequests";
+
 const StatusBadge = ({ status }) => {
   const normalized = status?.toLowerCase().replace(/\s+/g, "") || "default";
+  const displayLabel = getStatusDisplayLabel(status);
 
   const styles = {
     active: "bg-emerald-50 text-emerald-600",
@@ -28,7 +31,7 @@ const StatusBadge = ({ status }) => {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${style}`}
     >
-      {status}
+      {displayLabel}
     </span>
   );
 };

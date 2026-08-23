@@ -7,9 +7,12 @@ import {
   Droplets,
   Clock3,
   AlertTriangle,
+  MoreHorizontal,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useDonationRequests } from "@/context/DonationRequestContext";
+import { normalizeStatusForCompare, getStatusDisplayLabel } from "@/lib/donationRequests";
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 import StatCard from "@/Components/dashboard/shared/StatCard";
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
@@ -18,7 +21,7 @@ import DonationRequestTable from "@/Components/dashboard/shared/DonationRequestT
 import DonationRequestModal from "@/Components/dashboard/shared/DonationRequestModal";
 
 export default function AdminRequests() {
-  const { requests, updateRequestStatus, isInitialized } = useDonationRequests();
+  const { requests, updateDonationRequestStatus, isInitialized, updatingStatusId } = useDonationRequests();
 
   const [search, setSearch] = useState("");
   const [bloodGroupFilter, setBloodGroupFilter] = useState("");
@@ -30,6 +33,7 @@ export default function AdminRequests() {
 
   const [activeTab, setActiveTab] = useState("All");
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [updatingRequestId, setUpdatingRequestId] = useState(null);
 
   const filters = useMemo(
     () => ({
@@ -48,7 +52,8 @@ export default function AdminRequests() {
     let result = requests;
 
     if (activeTab !== "All") {
-      result = result.filter((req) => req.status === activeTab);
+      const normalizedTab = normalizeStatusForCompare(activeTab);
+      result = result.filter((req) => normalizeStatusForCompare(req.status) === normalizedTab);
     }
 
     return result;
@@ -56,6 +61,7 @@ export default function AdminRequests() {
 
   const finalFiltered = useMemo(() => {
     const searchText = search.toLowerCase().trim();
+    const normalizedStatusFilter = normalizeStatusForCompare(statusFilter);
 
     return filteredRequests.filter((req) => {
       const matchesSearch =
@@ -69,7 +75,7 @@ export default function AdminRequests() {
         (req.bloodGroup && req.bloodGroup.toLowerCase().includes(searchText));
 
       const matchesBlood = !bloodGroupFilter || req.bloodGroup === bloodGroupFilter;
-      const matchesStatus = !statusFilter || req.status === statusFilter;
+      const matchesStatus = !normalizedStatusFilter || normalizeStatusForCompare(req.status) === normalizedStatusFilter;
       const matchesUrgency = !urgencyFilter || req.urgency === urgencyFilter;
       const matchesLocation =
         !locationFilter ||
@@ -95,10 +101,10 @@ export default function AdminRequests() {
   }, [filteredRequests, search, bloodGroupFilter, statusFilter, urgencyFilter, locationFilter, districtFilter, upazilaFilter]);
 
   const stats = useMemo(() => {
-    const pending = requests.filter((r) => r.status === "Pending").length;
-    const inProgress = requests.filter((r) => r.status === "In Progress").length;
-    const done = requests.filter((r) => r.status === "Done").length;
-    const cancelled = requests.filter((r) => r.status === "Cancelled").length;
+    const pending = requests.filter((r) => normalizeStatusForCompare(r.status) === "pending").length;
+    const inProgress = requests.filter((r) => normalizeStatusForCompare(r.status) === "inprogress").length;
+    const done = requests.filter((r) => normalizeStatusForCompare(r.status) === "done").length;
+    const cancelled = requests.filter((r) => normalizeStatusForCompare(r.status) === "cancelled").length;
     const urgent = requests.filter((r) => r.urgency === "Urgent").length;
 
     return {
@@ -130,14 +136,50 @@ export default function AdminRequests() {
     setActiveTab("All");
   };
 
-  const handleStatusUpdate = (requestId, newStatus) => {
-    updateRequestStatus(requestId, newStatus);
-    setSelectedRequest((prev) =>
-      prev && prev.id === requestId ? { ...prev, status: newStatus } : prev
-    );
+  const handleStatusUpdate = async (requestId, newStatus) => {
+    setUpdatingRequestId(requestId);
+    try {
+      await updateDonationRequestStatus(requestId, newStatus);
+      setSelectedRequest((prev) =>
+        prev && prev.id === requestId ? { ...prev, status: newStatus, statusDisplayLabel: getStatusDisplayLabel(newStatus) } : prev
+      );
+      
+      const label = getStatusDisplayLabel(newStatus);
+      if (newStatus === "done") {
+        toast.success("Blood request completed successfully.");
+      } else if (newStatus === "cancelled") {
+        toast.success("Blood request cancelled successfully.");
+      } else {
+        toast.success(`Request moved to ${label}.`);
+      }
+    } catch (error) {
+      console.error("Status update failed:", error);
+    } finally {
+      setUpdatingRequestId(null);
+    }
   };
 
   const isLoading = !isInitialized;
+
+  const renderActions = (req) => {
+    const normalizedStatus = normalizeStatusForCompare(req.status);
+    const isUpdating = updatingRequestId === req.id || updatingStatusId === req.id;
+
+    if (normalizedStatus === "inprogress") {
+      return (
+        <button
+          type="button"
+          onClick={() => setSelectedRequest(req)}
+          disabled={isUpdating}
+          className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#FFF4F5] hover:text-[#D62839] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="min-h-screen space-y-7">
@@ -155,9 +197,9 @@ export default function AdminRequests() {
           <section className="grid grid-cols-1 gap-5 md:grid-cols-3 xl:grid-cols-5">
             <StatCard title="Total Requests" value={stats.total} icon={Droplets} color="#D62839" />
             <StatCard title="Pending" value={stats.pending} icon={Clock3} color="#F59E0B" />
-            <StatCard title="Urgent" value={stats.urgent} icon={AlertTriangle} color="#EF4444" />
             <StatCard title="In Progress" value={stats.inProgress} icon={Clock3} color="#2563EB" />
             <StatCard title="Done" value={stats.done} icon={CheckCircle2} color="#16A34A" />
+            <StatCard title="Cancelled" value={stats.cancelled} icon={AlertTriangle} color="#EF4444" /> 
           </section>
 
           <div className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl bg-[#F1F5F9] p-1">
@@ -202,6 +244,7 @@ export default function AdminRequests() {
             requests={finalFiltered}
             itemsPerPage={5}
             onActionClick={setSelectedRequest}
+            renderActions={renderActions}
           />
 
           <DonationRequestModal
@@ -212,12 +255,13 @@ export default function AdminRequests() {
           >
             {selectedRequest && (
               <>
-                {selectedRequest.status === "Pending" && (
+                {normalizeStatusForCompare(selectedRequest.status) === "pending" && (
                   <>
                     <button
                       type="button"
-                      onClick={() => handleStatusUpdate(selectedRequest.id, "In Progress")}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
+                      onClick={() => handleStatusUpdate(selectedRequest.id, "inprogress")}
+                      disabled={updatingRequestId === selectedRequest.id}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CheckCircle2 size={16} />
                       Approve
@@ -225,7 +269,8 @@ export default function AdminRequests() {
                     <button
                       type="button"
                       onClick={() => handleStatusUpdate(selectedRequest.id, "Rejected")}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700"
+                      disabled={updatingRequestId === selectedRequest.id}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <XCircle size={16} />
                       Reject
@@ -233,20 +278,22 @@ export default function AdminRequests() {
                   </>
                 )}
 
-                {selectedRequest.status === "In Progress" && (
+                {normalizeStatusForCompare(selectedRequest.status) === "inprogress" && (
                   <>
                     <button
                       type="button"
-                      onClick={() => handleStatusUpdate(selectedRequest.id, "Done")}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
+                      onClick={() => handleStatusUpdate(selectedRequest.id, "done")}
+                      disabled={updatingRequestId === selectedRequest.id}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CheckCircle2 size={16} />
                       Confirm
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStatusUpdate(selectedRequest.id, "Cancelled")}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700"
+                      onClick={() => handleStatusUpdate(selectedRequest.id, "cancelled")}
+                      disabled={updatingRequestId === selectedRequest.id}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <XCircle size={16} />
                       Cancel
@@ -254,21 +301,21 @@ export default function AdminRequests() {
                   </>
                 )}
 
-                {selectedRequest.status === "Done" && (
+                {normalizeStatusForCompare(selectedRequest.status) === "done" && (
                   <div className="flex w-full items-center justify-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-600">
                     <CheckCircle2 size={17} className="mr-2" />
                     Request Completed
                   </div>
                 )}
 
-                {selectedRequest.status === "Cancelled" && (
+                {normalizeStatusForCompare(selectedRequest.status) === "cancelled" && (
                   <div className="flex w-full items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
                     <XCircle size={17} className="mr-2" />
                     Request Cancelled
                   </div>
                 )}
 
-                {selectedRequest.status === "Rejected" && (
+                {normalizeStatusForCompare(selectedRequest.status) === "rejected" && (
                   <div className="flex w-full items-center justify-center rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                     <XCircle size={17} className="mr-2" />
                     Request Rejected

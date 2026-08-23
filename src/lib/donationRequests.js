@@ -24,16 +24,18 @@ export const URGENCY_LEVELS = [
 ];
 
 export const getStatusStyle = (status) => {
-  switch (status) {
-    case "Pending":
+  const normalized = String(status || "").toLowerCase().replace(/\s+/g, "");
+
+  switch (normalized) {
+    case "pending":
       return "bg-amber-50 text-amber-600";
-    case "In Progress":
+    case "inprogress":
       return "bg-blue-50 text-blue-600";
-    case "Done":
+    case "done":
       return "bg-emerald-50 text-emerald-600";
-    case "Cancelled":
+    case "cancelled":
       return "bg-slate-100 text-slate-600";
-    case "Rejected":
+    case "rejected":
       return "bg-red-50 text-red-600";
     default:
       return "bg-slate-100 text-slate-600";
@@ -55,16 +57,28 @@ export const getUrgencyStyle = (urgency) => {
   }
 };
 
-export const normalizeStatus = (status) => {
-  if (!status) return "Pending";
-  const s = String(status).toLowerCase().trim();
-  if (s === "approved" || s === "in progress" || s === "inprogress") return "In Progress";
-  if (s === "confirmed" || s === "fulfilled" || s === "completed" || s === "done") return "Done";
-  if (s === "cancelled" || s === "canceled") return "Cancelled";
-  if (s === "rejected") return "Rejected";
-  if (s === "pending") return "Pending";
-  if (s === "urgent" || s === "active") return "Pending";
-  return "Pending";
+export const normalizeStatusForCompare = (status) => {
+  if (!status) return "";
+  const s = String(status).toLowerCase().trim().replace(/\s+/g, "");
+  return s;
+};
+
+export const getStatusDisplayLabel = (status) => {
+  const normalized = normalizeStatusForCompare(status);
+  switch (normalized) {
+    case "pending":
+      return "Pending";
+    case "inprogress":
+      return "In Progress";
+    case "done":
+      return "Done";
+    case "cancelled":
+      return "Cancelled";
+    case "rejected":
+      return "Rejected";
+    default:
+      return status || "Unknown";
+  }
 };
 
 export const filterRequests = (requests, filters) => {
@@ -79,6 +93,7 @@ export const filterRequests = (requests, filters) => {
   } = filters;
 
   const searchText = search.toLowerCase().trim();
+  const normalizedStatusFilter = normalizeStatusForCompare(status);
 
   return requests.filter((req) => {
     const matchesSearch =
@@ -92,11 +107,18 @@ export const filterRequests = (requests, filters) => {
       (req.bloodGroup && req.bloodGroup.toLowerCase().includes(searchText));
 
     const matchesBlood = !bloodGroup || req.bloodGroup === bloodGroup;
-    const matchesStatus = !status || req.status === status;
+    const matchesStatus = !normalizedStatusFilter || normalizeStatusForCompare(req.status) === normalizedStatusFilter;
     const matchesUrgency = !urgency || req.urgency === urgency;
-    const matchesLocation = !location || req.location === location || req.address === location;
-    const matchesDistrict = !district || req.district === district || req.districtName === district;
-    const matchesUpazila = !upazila || req.upazila === upazila || req.upazilaName === upazila;
+    const matchesLocation =
+      !location ||
+      (req.location && req.location.toLowerCase().includes(location.toLowerCase())) ||
+      (req.address && req.address.toLowerCase().includes(location.toLowerCase()));
+    const matchesDistrict =
+      !district ||
+      (req.districtName && req.districtName.toLowerCase().includes(district.toLowerCase()));
+    const matchesUpazila =
+      !upazila ||
+      (req.upazilaName && req.upazilaName.toLowerCase().includes(upazila.toLowerCase()));
 
     return (
       matchesSearch &&
@@ -112,10 +134,10 @@ export const filterRequests = (requests, filters) => {
 
 export const getRequestStats = (requests) => {
   const total = requests.length;
-  const pending = requests.filter((r) => r.status === "Pending").length;
-  const inProgress = requests.filter((r) => r.status === "In Progress").length;
-  const done = requests.filter((r) => r.status === "Done").length;
-  const cancelled = requests.filter((r) => r.status === "Cancelled").length;
+  const pending = requests.filter((r) => normalizeStatusForCompare(r.status) === "pending").length;
+  const inProgress = requests.filter((r) => normalizeStatusForCompare(r.status) === "inprogress").length;
+  const done = requests.filter((r) => normalizeStatusForCompare(r.status) === "done").length;
+  const cancelled = requests.filter((r) => normalizeStatusForCompare(r.status) === "cancelled").length;
   const urgent = requests.filter((r) => r.urgency === "Urgent").length;
 
   return {

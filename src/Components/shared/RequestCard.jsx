@@ -6,12 +6,18 @@ import {
   HeartPulse,
   MapPin,
 } from "lucide-react";
+import { getStatusDisplayLabel } from "@/lib/donationRequests";
 
 const RequestCard = ({ request }) => {
   const status = request.status;
-  const isUrgent = status === "Urgent";
+  const statusLabel = getStatusDisplayLabel(status);
+  const isUrgent = request.urgency === "Urgent";
 
-  const id = request.id;
+  const requestId =
+    typeof request._id === "object"
+      ? request._id.toString()
+      : String(request._id || request.id || request.requestId);
+  const id = requestId;
   const bloodGroup = request.bloodGroup;
   const name = request.recipientName || request.name || "";
   const location = request.address || request.location || "";
@@ -48,7 +54,7 @@ const RequestCard = ({ request }) => {
               }`}
             />
 
-             {status}
+             {statusLabel}
           </span>
 
           <span className="text-[9px] font-medium text-[#A0A0A0]">

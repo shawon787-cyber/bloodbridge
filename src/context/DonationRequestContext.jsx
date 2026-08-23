@@ -5,11 +5,14 @@ import { createContext } from "react";
 import {
   getDonationRequests,
   createDonationRequest as createDonationRequestAction,
+  updateDonationRequestStatus as updateDonationRequestStatusAction,
 } from "@/lib/actions/donationRequests";
 import {
-  normalizeStatus,
+  normalizeStatusForCompare,
+  getStatusDisplayLabel,
   DONATION_REQUEST_STATUSES,
 } from "@/lib/donationRequests";
+import { toast } from "sonner";
 
 const buildLocation = (raw) => {
   if (!raw) return { name: "", districtName: "", upazilaName: "" };
@@ -51,13 +54,14 @@ const normalizeRequest = (req) => {
   const requesterName = req.requesterName || req.contact || req.name || "";
   const requesterEmail = req.requesterEmail || req.email || "";
 
-  const status = normalizeStatus(req.status);
+  const status = req.status || "Pending";
 
   const districtId = req.districtId || req.district || "";
   const upazilaId = req.upazilaId || req.upazila || "";
 
   const districtName =
     req.districtName || location.districtName || "";
+
   const upazilaName =
     req.upazilaName || location.upazilaName || "";
 
@@ -113,6 +117,7 @@ const normalizeRequest = (req) => {
     description: req.message || req.description || "",
     patient: recipientName,
     location: location.name,
+    statusDisplayLabel: getStatusDisplayLabel(status),
   };
 };
 
@@ -121,6 +126,7 @@ const DonationRequestContext = createContext(null);
 export function DonationRequestProvider({ children }) {
   const [requests, setRequests] = useState([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -192,10 +198,34 @@ export function DonationRequestProvider({ children }) {
     setRequests((prev) =>
       prev.map((req) =>
         req.id === id
-          ? { ...req, status: normalizeStatus(status), updatedAt: new Date().toISOString() }
+          ? { ...req, status, updatedAt: new Date().toISOString(), statusDisplayLabel: getStatusDisplayLabel(status) }
           : req
       )
     );
+  }, []);
+
+  const updateDonationRequestStatus = useCallback(async (requestId, newStatus) => {
+    setUpdatingStatusId(requestId);
+    try {
+      const result = await updateDonationRequestStatusAction(requestId, newStatus);
+      if (!result?.success) {
+        throw new Error(result?.message || "Failed to update request status");
+      }
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.id === requestId
+            ? { ...req, status: newStatus, updatedAt: new Date().toISOString(), statusDisplayLabel: getStatusDisplayLabel(newStatus) }
+            : req
+        )
+      );
+      return result;
+    } catch (error) {
+      console.error("Failed to update donation request status:", error);
+      toast.error(error.message || "Failed to update request status");
+      throw error;
+    } finally {
+      setUpdatingStatusId(null);
+    }
   }, []);
 
   const getRequestById = useCallback((id) => {
@@ -215,9 +245,11 @@ export function DonationRequestProvider({ children }) {
         refreshDonationRequests,
         updateDonationRequest,
         updateRequestStatus,
+        updateDonationRequestStatus,
         getRequestById,
         removeDonationRequest,
         isInitialized,
+        updatingStatusId,
         statuses: DONATION_REQUEST_STATUSES,
       }}
     >
