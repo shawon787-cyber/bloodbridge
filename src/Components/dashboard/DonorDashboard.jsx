@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { useDonationRequests } from "@/context/DonationRequestContext";
+import { isBlockedUser } from "@/lib/isBlockedUser";
 
 /* =================================
    DONOR STATS
@@ -398,13 +399,25 @@ export default function DonorDashboard({ user }) {
             </p>
           </div>
 
-          <Link
-            href="/dashboard/create-donation-request"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#A4161A]"
-          >
-            <Plus size={15} />
-            Create Request
-          </Link>
+          {isBlockedUser(user) ? (
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-300 px-4 py-2.5 text-xs font-bold text-white cursor-not-allowed"
+              title="Your account is blocked. You cannot create a donation request."
+            >
+              <Plus size={15} />
+              Create Request
+            </button>
+          ) : (
+            <Link
+              href="/dashboard/create-donation-request"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#A4161A]"
+            >
+              <Plus size={15} />
+              Create Request
+            </Link>
+          )}
 
         </div>
 
@@ -503,13 +516,25 @@ export default function DonorDashboard({ user }) {
                 Create a request when you or someone you know needs blood.
               </p>
 
-              <Link
-                href="/dashboard/create-donation-request"
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#A4161A]"
-              >
-                <Plus size={17} />
-                Create Blood Request
-              </Link>
+              {isBlockedUser(user) ? (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-300 px-5 py-3 text-sm font-bold text-white cursor-not-allowed"
+                  title="Your account is blocked. You cannot create a donation request."
+                >
+                  <Plus size={17} />
+                  Create Blood Request
+                </button>
+              ) : (
+                <Link
+                  href="/dashboard/create-donation-request"
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#A4161A]"
+                >
+                  <Plus size={17} />
+                  Create Blood Request
+                </Link>
+              )}
 
             </div>
 

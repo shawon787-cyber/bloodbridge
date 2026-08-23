@@ -14,6 +14,7 @@ import {
   X,
   History,
 } from "lucide-react";
+import { isBlockedUser } from "@/lib/isBlockedUser";
 
 const menuItems = {
   admin: [
@@ -60,11 +61,7 @@ const menuItems = {
       href: "/volunteer/requests",
       icon: Droplets,
     },
-    {
-      label: "Donors",
-      href: "/volunteer/donors",
-      icon: Users,
-    },
+    
     {
       label: "Funding",
       href: "/volunteer/funding",
@@ -185,7 +182,14 @@ const DashboardSidebar = ({
     return null;
   }
 
-  const currentMenuItems = menuItems[currentRole];
+  const currentMenuItems = menuItems[currentRole].filter(
+    (item) => {
+      if (item.label === "Create Donation Request" && isBlockedUser(user)) {
+        return false;
+      }
+      return true;
+    }
+  );
 
   const panelTitle = roleConfig[currentRole].title;
 

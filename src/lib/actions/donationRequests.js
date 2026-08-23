@@ -23,11 +23,11 @@ export const createDonationRequest = async (donationRequestData) => {
         },
         body: JSON.stringify(donationRequestData),
     });
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${res.status}: Failed to create donation request`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+        return data;
     }
-    return res.json();
+    return data;
 };
 
 export const updateDonationRequestStatus = async (requestId, status) => {

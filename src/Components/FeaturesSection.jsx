@@ -1,3 +1,6 @@
+"use client";
+
+import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -12,8 +15,21 @@ import {
   ShieldCheck,
   UserRoundCheck,
 } from "lucide-react";
+import { isBlockedUser } from "@/lib/isBlockedUser";
+import { toast } from "sonner";
 
 const FeaturesSection = () => {
+  const { data: session } = useSession();
+  const user = session?.user;
+  const blocked = isBlockedUser(user);
+
+  const handleCreateClick = (e) => {
+    if (blocked) {
+      e.preventDefault();
+      toast.error("Your account is blocked. You cannot create a donation request.");
+    }
+  };
+
   return (
     <section className="relative overflow-hidden bg-[#FFF9F9] py-16 sm:py-20 lg:py-24">
 
@@ -115,15 +131,22 @@ const FeaturesSection = () => {
 
             {/* CTA */}
             <Link
-              href="/donation-requests/create"
-              className="group/btn relative mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-300 hover:bg-[#B91C2C] hover:shadow-[0_10px_25px_rgba(214,40,57,0.25)] sm:mt-8 sm:w-auto"
+              href="/dashboard/create-donation-request"
+              onClick={handleCreateClick}
+              className={`group/btn relative mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-300 sm:mt-8 sm:w-auto ${
+                blocked
+                  ? "bg-slate-300 cursor-not-allowed"
+                  : "bg-[#D62839] hover:bg-[#B91C2C] hover:shadow-[0_10px_25px_rgba(214,40,57,0.25)]"
+              }`}
             >
               Create Blood Request
 
-              <ArrowUpRight
-                size={17}
-                className="transition-transform duration-300 group-hover/btn:-translate-y-0.5 group-hover/btn:translate-x-0.5"
-              />
+              {!blocked && (
+                <ArrowUpRight
+                  size={17}
+                  className="transition-transform duration-300 group-hover/btn:-translate-y-0.5 group-hover/btn:translate-x-0.5"
+                />
+              )}
             </Link>
 
           </div>

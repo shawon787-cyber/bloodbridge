@@ -3,6 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { useDonationRequests } from "@/context/DonationRequestContext";
 import { useSession } from "@/lib/auth-client";
+import { isBlockedUser } from "@/lib/isBlockedUser";
+import { toast } from "sonner";
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 import {
   AlertCircle,
@@ -73,6 +75,7 @@ export default function CreateDonation() {
   const { data: session, isPending: sessionPending } = useSession();
 
   const currentUser = session?.user;
+  const blocked = isBlockedUser(currentUser);
 
   const [formData, setFormData] = useState({
     requesterName: "",
@@ -240,6 +243,13 @@ export default function CreateDonation() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (currentUser?.status === "blocked") {
+      toast.error(
+        "Your account is blocked. You cannot create a donation request."
+      );
+      return;
+    }
+
     if (!validateForm()) return;
 
     setIsSubmitting(true);
@@ -252,6 +262,7 @@ export default function CreateDonation() {
 
       const submissionData = {
         ...formData,
+        userId: currentUser?.id,
         districtId: formData.district,
         districtName: selectedDistrict?.name || "",
         districtBnName: selectedDistrict?.bn_name || "",
@@ -274,7 +285,14 @@ export default function CreateDonation() {
       }
     } catch (error) {
       console.error("Failed to submit donation request:", error);
-      setSubmitError("Failed to submit donation request. Please try again.");
+      if (error?.blocked) {
+        toast.error(
+          error.message ||
+            "Your account is blocked. You cannot create a donation request."
+        );
+      } else {
+        setSubmitError(error?.message || "Failed to submit donation request. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -374,12 +392,37 @@ export default function CreateDonation() {
       )}
 
       {/* =================================================
-          FORM
-      ================================================= */}
+           BLOCKED BANNER
+        ================================================= */}
+
+      {blocked && (
+        <div className="mx-auto mt-5 flex w-full max-w-4xl items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <AlertCircle size={18} />
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-red-800">
+              Donation Request Unavailable
+            </p>
+
+            <p className="mt-0.5 text-[11px] text-red-700">
+              Your account is currently blocked, so you cannot create a donation request.
+              Please contact an administrator if you believe this is a mistake.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================
+           FORM
+        ================================================= */}
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto mt-5 w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.05)]"
+        className={`mx-auto mt-5 w-full max-w-4xl overflow-hidden rounded-2xl border bg-white shadow-[0_8px_30px_rgba(15,23,42,0.05)] ${
+          blocked ? "border-slate-200 opacity-75" : "border-slate-200"
+        }`}
       >
         {/* =================================================
             REQUESTER
@@ -467,6 +510,7 @@ export default function CreateDonation() {
                   )} pl-9`}
                   placeholder="Enter your phone number"
                   required
+                  disabled={blocked}
                 />
               </div>
 
@@ -514,6 +558,7 @@ export default function CreateDonation() {
                 )}
                 placeholder="Enter patient's full name"
                 required
+                disabled={blocked}
               />
 
               <FieldError field="recipientName" />
@@ -542,6 +587,7 @@ export default function CreateDonation() {
                   )} pl-9`}
                   placeholder="e.g. Dhaka Medical College"
                   required
+                  disabled={blocked}
                 />
               </div>
 
@@ -569,6 +615,7 @@ export default function CreateDonation() {
                     "district"
                   )} appearance-none pl-9 pr-9`}
                   required
+                  disabled={blocked}
                 >
                   <option value="">
                     Select district
@@ -605,7 +652,7 @@ export default function CreateDonation() {
                   name="upazila"
                   value={formData.upazila}
                   onChange={handleChange}
-                  disabled={!formData.district}
+                  disabled={!formData.district || blocked}
                   className={`${inputClass(
                     "upazila"
                   )} appearance-none pr-9 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400`}
@@ -657,6 +704,7 @@ export default function CreateDonation() {
                     "bloodGroup"
                   )} appearance-none pl-9 pr-9`}
                   required
+                  disabled={blocked}
                 >
                   <option value="">
                     Select blood group
@@ -702,6 +750,7 @@ export default function CreateDonation() {
                     "units"
                   )} appearance-none pl-9 pr-9`}
                   required
+                  disabled={blocked}
                 >
                   {[1, 2, 3, 4, 5].map((unit) => (
                     <option
@@ -768,6 +817,7 @@ export default function CreateDonation() {
                     "donationDate"
                   )} pl-9`}
                   required
+                  disabled={blocked}
                 />
               </div>
 
@@ -796,6 +846,7 @@ export default function CreateDonation() {
                     "donationTime"
                   )} pl-9`}
                   required
+                  disabled={blocked}
                 />
               </div>
 
@@ -822,7 +873,7 @@ export default function CreateDonation() {
                         active
                           ? "border-[#D62839] bg-[#FFF7F8] ring-2 ring-[#FDECEF]"
                           : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
+                      } ${blocked ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       <input
                         type="radio"
@@ -831,6 +882,7 @@ export default function CreateDonation() {
                         checked={active}
                         onChange={handleChange}
                         className="sr-only"
+                        disabled={blocked}
                       />
 
                       <div className="flex items-center justify-between gap-2">
@@ -881,17 +933,18 @@ export default function CreateDonation() {
                   className="pointer-events-none absolute left-3 top-3 text-slate-400"
                 />
 
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  rows={2}
-                  className={`${inputClass(
-                    "address"
-                  )} resize-none pl-9`}
-                  placeholder="Ward, road, area, nearby landmark..."
-                  required
-                />
+                  <textarea
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    rows={2}
+                    className={`${inputClass(
+                      "address"
+                    )} resize-none pl-9`}
+                    placeholder="Ward, road, area, nearby landmark..."
+                    required
+                    disabled={blocked}
+                  />
               </div>
 
               <FieldError field="address" />
@@ -931,6 +984,7 @@ export default function CreateDonation() {
             )} resize-none`}
             placeholder="Explain why blood is needed, patient's condition, or other important information..."
             required
+            disabled={blocked}
           />
 
           <div className="mt-1.5 flex items-center justify-between">
@@ -989,14 +1043,15 @@ export default function CreateDonation() {
             <button
               type="button"
               onClick={handleReset}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50"
+              disabled={blocked}
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Clear Form
             </button>
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || blocked}
               className="flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#A4161A] hover:shadow-md active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (

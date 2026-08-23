@@ -155,9 +155,13 @@ export function DonationRequestProvider({ children }) {
   }, []);
 
   const addDonationRequest = useCallback(async (requestData) => {
-    console.log("Submitting donation request:", requestData);
     const result = await createDonationRequestAction(requestData);
-    console.log("Create donation API response:", result);
+    if (result?.blocked) {
+      const message = result?.message || "Your account is blocked. You cannot create a donation request.";
+      const error = new Error(message);
+      error.blocked = true;
+      throw error;
+    }
     if (!result?.success) {
       throw new Error(result?.message || "Failed to create donation request");
     }

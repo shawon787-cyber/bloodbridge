@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { normalizeStatusForCompare, getStatusDisplayLabel } from "@/lib/donationRequests";
+import { isBlockedUser } from "@/lib/isBlockedUser";
 
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 
@@ -35,6 +36,9 @@ export default function MyDonationRequests() {
   const [activeTab, setActiveTab] = useState("All");
   const { requests, isInitialized } = useDonationRequests();
   const { data: session, isPending: sessionPending } = useSession();
+
+  const currentUser = session?.user;
+  const blocked = isBlockedUser(currentUser);
 
   const currentUserEmail = session?.user?.email?.toLowerCase();
 
@@ -90,22 +94,39 @@ export default function MyDonationRequests() {
           subtitle="Track and manage every blood request you have created."
         />
 
-        <Link
-          href="/dashboard/create-request"
-          className="
-            inline-flex w-fit items-center justify-center gap-2
-            rounded-xl bg-[#D62839]
-            px-4 py-2.5
-            text-sm font-semibold text-white
-            shadow-sm
-            transition-all
-            hover:bg-[#A4161A]
-            hover:shadow-md
-          "
-        >
-          <Plus size={17} strokeWidth={2.5} />
-          New Request
-        </Link>
+        {blocked ? (
+          <button
+            type="button"
+            disabled
+            className="
+              inline-flex w-fit items-center justify-center gap-2
+              rounded-xl bg-slate-300
+              px-4 py-2.5
+              text-sm font-semibold text-white
+              cursor-not-allowed"
+            title="Your account is blocked. You cannot create a donation request."
+          >
+            <Plus size={17} strokeWidth={2.5} />
+            New Request
+          </button>
+        ) : (
+          <Link
+            href="/dashboard/create-donation-request"
+            className="
+              inline-flex w-fit items-center justify-center gap-2
+              rounded-xl bg-[#D62839]
+              px-4 py-2.5
+              text-sm font-semibold text-white
+              shadow-sm
+              transition-all
+              hover:bg-[#A4161A]
+              hover:shadow-md
+            "
+          >
+            <Plus size={17} strokeWidth={2.5} />
+            New Request
+          </Link>
+        )}
       </div>
 
       {/* ================= STATUS FILTER ================= */}
@@ -173,25 +194,42 @@ export default function MyDonationRequests() {
 
               {/* Create Button */}
 
-              {activeTab === "All" && (
-                <Link
-                  href="/dashboard/create-request"
-                  className="
-                    mt-5 inline-flex items-center gap-2
-                    rounded-xl
-                    bg-[#D62839]
-                    px-4 py-2.5
-                    text-sm font-semibold text-white
-                    shadow-sm
-                    transition-all
-                    hover:bg-[#A4161A]
-                    hover:shadow-md
-                  "
-                >
-                  <Plus size={17} strokeWidth={2.5} />
-                  Create Donation Request
-                </Link>
-              )}
+              {activeTab === "All" &&
+                (blocked ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="
+                      mt-5 inline-flex items-center gap-2
+                      rounded-xl
+                      bg-slate-300
+                      px-4 py-2.5
+                      text-sm font-semibold text-white
+                      cursor-not-allowed"
+                    title="Your account is blocked. You cannot create a donation request."
+                  >
+                    <Plus size={17} strokeWidth={2.5} />
+                    Create Donation Request
+                  </button>
+                ) : (
+                  <Link
+                    href="/dashboard/create-donation-request"
+                    className="
+                      mt-5 inline-flex items-center gap-2
+                      rounded-xl
+                      bg-[#D62839]
+                      px-4 py-2.5
+                      text-sm font-semibold text-white
+                      shadow-sm
+                      transition-all
+                      hover:bg-[#A4161A]
+                      hover:shadow-md
+                    "
+                  >
+                    <Plus size={17} strokeWidth={2.5} />
+                    Create Donation Request
+                  </Link>
+                ))}
 
               {activeTab !== "All" && (
                 <button
