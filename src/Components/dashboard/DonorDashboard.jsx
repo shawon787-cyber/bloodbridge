@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Droplets,
@@ -26,45 +26,7 @@ import {
 import { useDonationRequests } from "@/context/DonationRequestContext";
 import { isBlockedUser } from "@/lib/isBlockedUser";
 
-/* =================================
-   DONOR STATS
-================================= */
 
-const donorStats = [
-  {
-    label: "My Blood Group",
-    value: "A+",
-    change: "Verified",
-    icon: Droplets,
-    color: "#D62839",
-  },
-  {
-    label: "Donation Status",
-    value: "Active",
-    change: "Eligible",
-    icon: CheckCircle2,
-    color: "#16A34A",
-  },
-  {
-    label: "Total Donations",
-    value: "12",
-    change: "+1 this year",
-    icon: Award,
-    color: "#F59E0B",
-  },
-  
-];
-
-/* =================================
-   DONATION STATUS
-================================= */
-
-const donationStatus = {
-  bloodGroup: "A+",
-  lastDonation: "2025-07-15",
-  nextEligible: "2025-10-15",
-  availability: "Available",
-};
 
 /* =================================
    PROFILE COMPLETION
@@ -78,40 +40,9 @@ const profileCompletion = {
   ],
 };
 
-/* =================================
-   DONATION HISTORY
-================================= */
 
-const donationHistory = [
-  {
-    date: "Aug 1, 2025",
-    hospital: "Dhaka Medical",
-    blood: "A+",
-    recipient: "Rahim Uddin",
-    status: "Completed",
-  },
-  {
-    date: "May 15, 2025",
-    hospital: "Square Hospital",
-    blood: "A+",
-    recipient: "Fatima Begum",
-    status: "Completed",
-  },
-  {
-    date: "Feb 3, 2025",
-    hospital: "Lab Aid Hospital",
-    blood: "A+",
-    recipient: "Karim Mia",
-    status: "Completed",
-  },
-  {
-    date: "Nov 20, 2024",
-    hospital: "Apollo Hospital",
-    blood: "A+",
-    recipient: "Sabina Yesmin",
-    status: "Completed",
-  },
-];
+
+
 
 /* =================================
    QUICK ACTIONS
@@ -164,9 +95,7 @@ const getRequestStatus = (status) => {
   }
 
   if (
-    normalizedStatus === "confirmed" ||
-    normalizedStatus === "fulfilled" ||
-    normalizedStatus === "completed"
+    normalizedStatus === "done"
   ) {
     return "Completed";
   }
@@ -216,47 +145,203 @@ const getStatusStyle = (status) => {
 ================================= */
 
 export default function DonorDashboard({ user }) {
+  const [donationHistory, setDonationHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
   const { requests, isInitialized } = useDonationRequests();
-
   const currentUserEmail = user?.email?.toLowerCase();
 
-  const userRequests = useMemo(() => {
-    if (!currentUserEmail) return [];
+  const [totalDonations, setTotalDonations] = useState(0);
+const [totalDonationsLoading, setTotalDonationsLoading] = useState(true);
+ 
 
-    return requests.filter((req) => {
+const donationStatus = useMemo(() => {
+  const latestDonation = [...donationHistory]
+    .filter(
+      (donation) =>
+        donation.completedAt ||
+        donation.donationDate ||
+        donation.date
+    )
+    .sort((a, b) => {
+      const dateA = new Date(
+        a.completedAt || a.donationDate || a.date
+      ).getTime();
+
+      const dateB = new Date(
+        b.completedAt || b.donationDate || b.date
+      ).getTime();
+
+      return dateB - dateA;
+    })[0];
+
+  const latestDonationDate = latestDonation
+    ? new Date(
+        latestDonation.completedAt ||
+          latestDonation.donationDate ||
+          latestDonation.date
+      )
+    : null;
+
+  
+  const nextEligibleDate = latestDonationDate
+    ? new Date(latestDonationDate)
+    : null;
+
+  if (nextEligibleDate) {
+    nextEligibleDate.setMonth(nextEligibleDate.getMonth() + 4);
+  }
+
+  
+  const today = new Date();
+
+  
+  const isEligible = !nextEligibleDate || today >= nextEligibleDate;
+
+  return {
+    bloodGroup: user?.bloodGroup || "—",
+
+    lastDonation: latestDonationDate
+      ? latestDonationDate.toLocaleDateString("en-GB")
+      : "No donation yet",
+
+    nextEligible: nextEligibleDate
+      ? nextEligibleDate.toLocaleDateString("en-GB")
+      : "Eligible",
+
+    availability: isEligible
+      ? "Available"
+      : "Unavailable",
+  };
+}, [user, donationHistory]);
+
+const donorStats = [
+  {
+    label: "My Blood Group",
+    value: user?.bloodGroup || "—",
+    change: "Verified",
+    icon: Droplets,
+    color: "#D62839",
+  },
+  {
+    label: "Donation Status",
+    value: user?.status
+  ? user.status.charAt(0).toUpperCase() + user.status.slice(1)
+  : "—",
+    change: "Eligible",
+    icon: CheckCircle2,
+    color: "#16A34A",
+  },
+  {
+    label: "Total Donations", 
+    value: donationHistory.length, //this length is for all user length not individual
+    change: "Completed",
+    icon: Award,
+    color: "#F59E0B",
+  },
+];
+
+ useEffect(() => {
+  const fetchDonationHistory = async () => {
+    if (!user?.id) {
+      setHistoryLoading(false);
+      return;
+    }
+
+    try {
+      setHistoryLoading(true);
+      setHistoryError("");
+
+      const response = await fetch(
+        "http://localhost:5000/api/donation-history"
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Failed to fetch donation history"
+        );
+      }
+
+      setDonationHistory(result.data || []);
+    } catch (error) {
+      console.error("Donation history error:", error);
+      setHistoryError("Failed to load donation history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  fetchDonationHistory();
+}, [user?.id]);
+useEffect(() => {
+  const fetchTotalDonations = async () => {
+    if (!user?.id) {
+      setTotalDonationsLoading(false);
+      return;
+    }
+
+    try {
+      setTotalDonationsLoading(true);
+
+      const response = await fetch(
+        `http://localhost:5000/api/donation-count/${user.id}`
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Failed to fetch donation count"
+        );
+      }
+
+      setTotalDonations(result.count || 0);
+    } catch (error) {
+      console.error("Total donation count error:", error);
+      setTotalDonations(0);
+    } finally {
+      setTotalDonationsLoading(false);
+    }
+  };
+
+  fetchTotalDonations();
+}, [user?.id]);
+
+  // const userRequests = useMemo(() => {
+  //   if (!currentUserEmail) return [];
+
+  //   return requests.filter((req) => {
+  //     const requesterEmail = (req.requesterEmail || "").toLowerCase();
+  //     return requesterEmail === currentUserEmail;
+  //   });
+  // }, [requests, currentUserEmail]);
+const userRequests = useMemo(() => {
+  if (!currentUserEmail) return [];
+
+  return requests
+    .filter((req) => {
       const requesterEmail = (req.requesterEmail || "").toLowerCase();
       return requesterEmail === currentUserEmail;
-    });
-  }, [requests, currentUserEmail]);
+    })
+    .sort((a, b) => {
+      const dateA = new Date(
+        a.createdAt || a.created_at || a.donationDate || 0
+      ).getTime();
 
+      const dateB = new Date(
+        b.createdAt || b.created_at || b.donationDate || 0
+      ).getTime();
+
+      return dateB - dateA;
+    });
+}, [requests, currentUserEmail]);
   const availableRequestsCount = useMemo(() => {
     return requests.filter((req) => ["Pending", "In Progress"].includes(req.status)).length;
   }, [requests]);
 
-  const donorStats = [
-    {
-      label: "My Blood Group",
-      value: "A+",
-      change: "Verified",
-      icon: Droplets,
-      color: "#D62839",
-    },
-    {
-      label: "Donation Status",
-      value: "Active",
-      change: "Eligible",
-      icon: CheckCircle2,
-      color: "#16A34A",
-    },
-    {
-      label: "Total Donations",
-      value: "12",
-      change: "+1 this year",
-      icon: Award,
-      color: "#F59E0B",
-    },
-    
-  ];
+  
 
   /* =================================
      REQUEST COUNTS
@@ -484,7 +569,7 @@ export default function DonorDashboard({ user }) {
 
           {userRequests.length > 0 && (
             <Link
-              href="/dashboard/requests"
+              href="/dashboard/my-donation-requests"
               className="text-xs font-semibold text-[#D62839] hover:underline"
             >
               View All
@@ -548,7 +633,7 @@ export default function DonorDashboard({ user }) {
 
           <div className="divide-y divide-slate-100">
 
-            {userRequests.slice(0, 5).map((request) => {
+            {userRequests.slice(0, 3).map((request) => {
 
               const status = getRequestStatus(
                 request.status
@@ -755,12 +840,7 @@ export default function DonorDashboard({ user }) {
             Recent Donation Activity
           </h3>
 
-          <Link
-            href="/dashboard/history"
-            className="text-xs font-semibold text-[#D62839] hover:underline"
-          >
-            View History
-          </Link>
+          
 
         </div>
 
@@ -796,7 +876,7 @@ export default function DonorDashboard({ user }) {
 
             </thead>
 
-            <tbody>
+            {/* <tbody>
 
               {donationHistory.map((donation) => (
 
@@ -841,7 +921,112 @@ export default function DonorDashboard({ user }) {
 
               ))}
 
-            </tbody>
+            </tbody> */}
+            <tbody>
+  {historyLoading ? (
+    <tr>
+      <td
+        colSpan={5}
+        className="px-5 py-10 text-center text-sm text-slate-500"
+      >
+        Loading donation history...
+      </td>
+    </tr>
+  ) : historyError ? (
+    <tr>
+      <td
+        colSpan={5}
+        className="px-5 py-10 text-center text-sm text-red-500"
+      >
+        {historyError}
+      </td>
+    </tr>
+  ) : donationHistory.length === 0 ? (
+    <tr>
+      <td
+        colSpan={5}
+        className="px-5 py-10 text-center text-sm text-slate-500"
+      >
+        No completed donation history available.
+      </td>
+    </tr>
+  ) : (
+    donationHistory.map((donation) => (
+      // <tr
+      //   key={donation._id}
+      //   className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50"
+      // >
+      //   <td className="px-5 py-3.5 text-slate-600">
+      //     {donation.completedAt
+      //       ? new Date(donation.completedAt).toLocaleDateString()
+      //       : donation.donationDate
+      //       ? new Date(donation.donationDate).toLocaleDateString()
+      //       : "—"}
+      //   </td>
+
+      //   <td className="px-5 py-3.5 font-medium text-slate-900">
+      //     {donation.hospitalName ||
+      //       donation.hospital ||
+      //       "Hospital not specified"}
+      //   </td>
+
+      //   <td className="px-5 py-3.5">
+      //     <span className="inline-flex items-center rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-bold text-[#D62839]">
+      //       {donation.bloodGroup || "—"}
+      //     </span>
+      //   </td>
+
+      //   <td className="px-5 py-3.5 text-slate-600">
+      //     {donation.recipientName ||
+      //       donation.recipient ||
+      //       "Recipient not specified"}
+      //   </td>
+
+      //   <td className="px-5 py-3.5">
+      //     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+      //       <CheckCircle2 size={12} />
+      //       Completed
+      //     </span>
+      //   </td>
+      // </tr>
+       <tr
+    key={donation._id}
+    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50"
+  >
+    <td className="px-5 py-3.5 text-slate-600">
+      {donation.completedAt
+        ? new Date(donation.completedAt).toLocaleDateString()
+        : "—"}
+    </td>
+
+    <td className="px-5 py-3.5 font-medium text-slate-900">
+      {donation.hospitalName ||
+        donation.hospital ||
+        "Hospital not specified"}
+    </td>
+
+    <td className="px-5 py-3.5">
+      <span className="inline-flex items-center rounded-lg bg-[#FDECEF] px-2.5 py-1 text-xs font-bold text-[#D62839]">
+        {donation.bloodGroup || "—"}
+      </span>
+    </td>
+
+    <td className="px-5 py-3.5 text-slate-600">
+      {donation.recipientName ||
+        donation.recipient ||
+        "Recipient not specified"}
+    </td>
+
+    <td className="px-5 py-3.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+        <CheckCircle2 size={12} />
+        Completed
+      </span>
+    </td>
+  </tr>
+    ))
+  )}
+</tbody>
 
           </table>
 

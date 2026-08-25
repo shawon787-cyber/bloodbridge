@@ -105,7 +105,7 @@ export default function VolunteerRequests() {
     const inProgress = requests.filter((r) => normalizeStatusForCompare(r.status) === "inprogress").length;
     const done = requests.filter((r) => normalizeStatusForCompare(r.status) === "done").length;
     const cancelled = requests.filter((r) => normalizeStatusForCompare(r.status) === "cancelled").length;
-    const urgent = requests.filter((r) => r.urgency === "Urgent").length;
+    
 
     return {
       total: requests.length,
@@ -113,7 +113,7 @@ export default function VolunteerRequests() {
       inProgress,
       done,
       cancelled,
-      urgent,
+      
     };
   }, [requests]);
 
@@ -197,9 +197,10 @@ export default function VolunteerRequests() {
           <section className="grid grid-cols-1 gap-5 md:grid-cols-3 xl:grid-cols-5">
             <StatCard title="Total Requests" value={stats.total} icon={Droplets} color="#D62839" />
             <StatCard title="Pending" value={stats.pending} icon={Clock3} color="#F59E0B" />
-            <StatCard title="Urgent" value={stats.urgent} icon={AlertTriangle} color="#EF4444" />
             <StatCard title="In Progress" value={stats.inProgress} icon={Clock3} color="#2563EB" />
+            
             <StatCard title="Done" value={stats.done} icon={CheckCircle2} color="#16A34A" />
+            <StatCard title="Cancelled" value={stats.cancelled} icon={AlertTriangle} color="#EF4444" />
           </section>
 
           <div className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl bg-[#F1F5F9] p-1">
