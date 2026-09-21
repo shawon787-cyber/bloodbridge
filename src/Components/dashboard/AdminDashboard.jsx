@@ -14,38 +14,12 @@ import {
   CircleDollarSign,
 } from "lucide-react";
 
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { useDonationRequests } from "@/context/DonationRequestContext";
 import { getRequestStats } from "@/lib/donationRequests";
+import { apiFetchJSON } from "@/lib/api";
 
-/* =========================================================
-   TEMPORARY DASHBOARD DATA
-   Later these values can come from MongoDB/API
-======================================================== */
-
-const monthlyRequests = [
-  { month: "Mar", requests: 320, completed: 210 },
-  { month: "Apr", requests: 405, completed: 270 },
-  { month: "May", requests: 380, completed: 295 },
-  { month: "Jun", requests: 470, completed: 350 },
-  { month: "Jul", requests: 525, completed: 405 },
-  { month: "Aug", requests: 590, completed: 455 },
-];
-
-const bloodGroups = [
-  { group: "A+", value: 820 },
-  { group: "A-", value: 190 },
-  { group: "B+", value: 635 },
-  { group: "B-", value: 150 },
-  { group: "AB+", value: 205 },
-  { group: "AB-", value: 70 },
-  { group: "O+", value: 950 },
-  { group: "O-", value: 175 },
-];
-
-
-
-const getRelativeTime = (date) => {
+function getRelativeTime(date) {
   if (!date) return "Unknown";
 
   const created = new Date(date);
@@ -104,182 +78,94 @@ const getRelativeTime = (date) => {
   return `${diffInYears} ${
     diffInYears === 1 ? "year" : "years"
   } ago`;
-};
-
-/* =========================================================
-   DASHBOARD COMPONENT
-======================================================== */
+}
 
 export default function AdminDashboard() {
- const [recentUsers, setRecentUsers] = useState([]);
-const [usersLoading, setUsersLoading] = useState(true);
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [recentRequests, setRecentRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState(false);
-  const [totalDonors, setTotalDonors] = useState(null);
-  const [totalDonorsError, setTotalDonorsError] = useState(false);
-  const [totalRequests, setTotalRequests] = useState(null);
-  const [totalRequestsError, setTotalRequestsError] = useState(false);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [adminStats, setAdminStats] = useState(null);
+  const [adminStatsLoading, setAdminStatsLoading] = useState(true);
 
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    setCurrentTime(Date.now());
-  }, 60000);
-
-  return () => clearInterval(interval);
-}, []);
-
-useEffect(() => {
-  const fetchRecentUsers = async () => {
-    try {
-      setUsersLoading(true);
-
-      const response = await fetch(
-        "http://localhost:5000/api/admin/users",
-        {
-          method: "GET",
-          cache: "no-store",
+  useEffect(() => {
+    const fetchRecentUsers = async () => {
+      try {
+        setUsersLoading(true);
+        const result = await apiFetchJSON("/api/admin/users");
+        if (result.success && Array.isArray(result.data)) {
+          setRecentUsers(result.data.slice(0, 4));
+        } else {
+          setRecentUsers([]);
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch users: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      console.log("Admin users:", result);
-
-      if (result.success && Array.isArray(result.data)) {
-        setRecentUsers(result.data.slice(0, 4));
-      } else {
+      } catch (error) {
+        console.error("Failed to fetch recent users:", error);
         setRecentUsers([]);
+      } finally {
+        setUsersLoading(false);
       }
-    } catch (error) {
-      console.error(
-        "Failed to fetch recent users:",
-        error
-      );
+    };
+    fetchRecentUsers();
+  }, []);
 
-      setRecentUsers([]);
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  fetchRecentUsers();
-}, []);
-
-useEffect(() => {
-  const fetchTotalDonors = async () => {
-    try {
-      const response = await fetch(
-        "http://localhost:5000/api/donors",
-        {
-          method: "GET",
-          cache: "no-store",
+  useEffect(() => {
+    const fetchRecentRequests = async () => {
+      try {
+        setRequestsLoading(true);
+        setRequestsError(false);
+        const result = await apiFetchJSON("/api/donation-requests");
+        if (result.success && Array.isArray(result.data)) {
+          const latestRequests = [...result.data]
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+            )
+            .slice(0, 4)
+            .map((req) => ({
+              id: req._id,
+              name: req.recipientName,
+              blood: req.bloodGroup,
+              hospital: req.hospitalName,
+              status: req.urgency === "Urgent" ? "Urgent" : req.status,
+              date: new Date(req.createdAt).toLocaleDateString(),
+            }));
+          setRecentRequests(latestRequests);
+        } else {
+          setRecentRequests([]);
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch donors: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      if (result.success && Array.isArray(result.data)) {
-        setTotalDonors(result.data.length);
-      } else {
-        setTotalDonors(0);
-      }
-    } catch (error) {
-      console.error(
-        "Failed to fetch total donors:",
-        error
-      );
-
-      setTotalDonors(null);
-      setTotalDonorsError(true);
-    }
-  };
-
-  fetchTotalDonors();
-}, []);
-
-useEffect(() => {
-  const fetchRecentRequests = async () => {
-    try {
-      setRequestsLoading(true);
-      setRequestsError(false);
-
-      const response = await fetch(
-        "http://localhost:5000/api/donation-requests",
-        {
-          method: "GET",
-          cache: "no-store",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch donation requests: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      if (
-        result.success &&
-        Array.isArray(result.data)
-      ) {
-        const latestRequests = [...result.data]
-          .sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() -
-              new Date(a.createdAt).getTime()
-          )
-          .slice(0, 4)
-          .map((req) => ({
-            id: req._id,
-            name: req.recipientName,
-            blood: req.bloodGroup,
-            hospital: req.hospitalName,
-            status: req.urgency === "Urgent" ? "Urgent" : req.status,
-            date: new Date(req.createdAt).toLocaleDateString(),
-          }));
-
-        setRecentRequests(latestRequests);
-        setTotalRequests(result.data.length);
-      } else {
+      } catch (error) {
+        console.error("Failed to fetch recent blood requests:", error);
         setRecentRequests([]);
-        setTotalRequests(0);
+        setRequestsError(true);
+      } finally {
+        setRequestsLoading(false);
       }
-    } catch (error) {
-      console.error(
-        "Failed to fetch recent blood requests:",
-        error
-      );
+    };
+    fetchRecentRequests();
+  }, []);
 
-      setRecentRequests([]);
-      setRequestsError(true);
-      setTotalRequestsError(true);
-    } finally {
-      setRequestsLoading(false);
-    }
-  };
+  useEffect(() => {
+    const fetchAdminStats = async () => {
+      try {
+        setAdminStatsLoading(true);
+        const data = await apiFetchJSON("/api/admin/stats");
+        if (data?.success && data?.data) {
+          setAdminStats(data.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch admin stats:", error);
+      } finally {
+        setAdminStatsLoading(false);
+      }
+    };
+    fetchAdminStats();
+  }, []);
 
-  fetchRecentRequests();
-}, []);
-  const { data: session } = useSession();
+  const { user } = useUser();
   const { requests } = useDonationRequests();
 
-  const user = session?.user;
   const userName = user?.name || "User";
   const role = user?.role;
 
@@ -315,30 +201,31 @@ useEffect(() => {
   const stats = [
     {
       label: "Total Donors",
-      value: totalDonors === null
-        ? totalDonorsError
-          ? "—"
-          : "Loading..."
-        : String(totalDonors),
-      change: "+12.5%",
+      value: adminStats
+        ? String(adminStats.users?.donors ?? 0)
+        : adminStatsLoading
+          ? "Loading..."
+          : "0",
       positive: true,
       icon: Users,
     },
     {
       label: "Total Funding",
-      value: "৳14,850",
-      change: "+8.2%",
+      value: adminStats
+        ? `$${(adminStats.funding?.total ?? 0).toLocaleString()}`
+        : adminStatsLoading
+          ? "Loading..."
+          : "$0",
       positive: true,
       icon: WalletCards,
     },
     {
       label: "Total Requests",
-      value: totalRequests === null
-        ? totalRequestsError
-          ? "—"
-          : "Loading..."
-        : String(totalRequests),
-      change: "+5.4%",
+      value: adminStats
+        ? String(adminStats.donationRequests?.total ?? 0)
+        : adminStatsLoading
+          ? "Loading..."
+          : "0",
       positive: true,
       icon: Droplets,
     },
@@ -346,10 +233,6 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen space-y-7">
-
-      {/* =====================================================
-          WELCOME SECTION
-      ===================================================== */}
 
       <section>
         <h1 className="text-2xl font-black tracking-tight text-[#111827] sm:text-3xl">
@@ -360,15 +243,10 @@ useEffect(() => {
           Here&apos;s an overview of the BloodBridge community.
         </p>
 
-        {/* Current Role */}
         <div className="mt-3 inline-flex items-center rounded-full bg-[#FDECEF] px-3 py-1 text-xs font-bold capitalize text-[#D62839]">
           {user?.role} Account
         </div>
       </section>
-
-      {/* =====================================================
-          STAT CARDS
-      ===================================================== */}
 
       <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
 
@@ -412,13 +290,7 @@ useEffect(() => {
 
       </section>
 
-      {/* =====================================================
-          CHARTS
-      ===================================================== */}
-
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-
-        {/* Donation Requests Chart */}
 
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
@@ -428,161 +300,97 @@ useEffect(() => {
             </h2>
 
             <p className="mt-1 text-xs text-[#64748B]">
-              Requests vs completed donations, last 6 months
+              Current status of all blood requests
             </p>
           </div>
 
-          <div className="mt-7">
-
-            {/* Chart */}
-
-            <div className="relative h-[260px]">
-
-              {/* Horizontal Lines */}
-
-              <div className="absolute inset-0 flex flex-col justify-between">
-
-                {[600, 450, 300, 150, 0].map((value) => (
-                  <div
-                    key={value}
-                    className="flex items-center gap-3"
-                  >
-                    <span className="w-7 text-right text-[10px] text-[#94A3B8]">
-                      {value}
-                    </span>
-
-                    <div className="h-px flex-1 border-t border-dashed border-[#E2E8F0]" />
+          {adminStatsLoading ? (
+            <div className="mt-7 h-[260px] animate-pulse rounded-xl bg-slate-100" />
+          ) : adminStats ? (
+            <div className="mt-7 space-y-4">
+              {[
+                { label: "Pending", value: adminStats.donationRequests?.pending ?? 0, color: "#F59E0B", bg: "bg-amber-50" },
+                { label: "In Progress", value: adminStats.donationRequests?.inProgress ?? 0, color: "#2563EB", bg: "bg-blue-50" },
+                { label: "Completed", value: adminStats.donationRequests?.done ?? 0, color: "#16A34A", bg: "bg-emerald-50" },
+                { label: "Canceled", value: adminStats.donationRequests?.canceled ?? 0, color: "#D62839", bg: "bg-red-50" },
+              ].map((item) => {
+                const total = adminStats.donationRequests?.total || 1;
+                const pct = Math.round((item.value / total) * 100);
+                return (
+                  <div key={item.label}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-[#64748B]">{item.label}</span>
+                      <span className="font-bold text-[#111827]">{item.value}</span>
+                    </div>
+                    <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: item.color }}
+                      />
+                    </div>
                   </div>
-                ))}
-
-              </div>
-
-              {/* SVG Line */}
-
-              <svg
-                viewBox="0 0 600 240"
-                preserveAspectRatio="none"
-                className="absolute left-10 right-0 top-0 h-[230px] w-[calc(100%-40px)]"
-              >
-
-                {/* Requests */}
-
-                <polyline
-                  points="0,120 120,65 240,78 360,35 480,22 600,0"
-                  fill="none"
-                  stroke="#D62839"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                {/* Completed */}
-
-                <polyline
-                  points="0,165 120,135 240,120 360,95 480,65 600,45"
-                  fill="none"
-                  stroke="#16A34A"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-              </svg>
-
-              {/* Months */}
-
-              <div className="absolute bottom-0 left-10 right-0 flex justify-between">
-                {monthlyRequests.map((item) => (
-                  <span
-                    key={item.month}
-                    className="text-[10px] text-[#64748B]"
-                  >
-                    {item.month}
-                  </span>
-                ))}
-              </div>
-
+                );
+              })}
             </div>
-
-            {/* Legend */}
-
-            <div className="mt-4 flex items-center justify-center gap-6 text-xs">
-
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-[#D62839]" />
-                <span className="text-[#64748B]">
-                  Requests
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-green-600" />
-                <span className="text-[#64748B]">
-                  Completed
-                </span>
-              </div>
-
+          ) : (
+            <div className="mt-7 flex h-[260px] items-center justify-center text-sm text-[#64748B]">
+              No data available
             </div>
-
-          </div>
+          )}
         </div>
-
-        {/* Blood Group Distribution */}
 
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
           <div>
             <h2 className="text-sm font-bold text-[#111827]">
-              Blood Group Distribution
+              User Distribution
             </h2>
 
             <p className="mt-1 text-xs text-[#64748B]">
-              Registered donors by blood group
+              Registered users by role
             </p>
           </div>
 
-          <div className="mt-7 flex h-[260px] items-end justify-between gap-2 px-1">
-
-            {bloodGroups.map((item) => {
-
-              const height = Math.max(
-                10,
-                (item.value / 1000) * 210
-              );
-
-              return (
-                <div
-                  key={item.group}
-                  className="flex h-full flex-1 flex-col items-center justify-end"
-                >
-
-                  <div className="mb-2 text-[10px] font-semibold text-[#64748B]">
-                    {item.value}
+          {adminStatsLoading ? (
+            <div className="mt-7 h-[260px] animate-pulse rounded-xl bg-slate-100" />
+          ) : adminStats ? (
+            <div className="mt-7 flex h-[260px] items-end justify-around gap-3 px-4">
+              {[
+                { label: "Donors", value: adminStats.users?.donors ?? 0, color: "#D62839" },
+                { label: "Volunteers", value: adminStats.users?.volunteers ?? 0, color: "#2563EB" },
+                { label: "Admins", value: adminStats.users?.admins ?? 0, color: "#16A34A" },
+              ].map((item) => {
+                const maxVal = Math.max(
+                  adminStats.users?.donors ?? 0,
+                  adminStats.users?.volunteers ?? 0,
+                  adminStats.users?.admins ?? 0,
+                  1
+                );
+                const height = Math.max(20, (item.value / maxVal) * 200);
+                return (
+                  <div key={item.label} className="flex h-full flex-1 flex-col items-center justify-end">
+                    <div className="mb-2 text-xs font-bold text-[#111827]">
+                      {item.value}
+                    </div>
+                    <div
+                      className="w-full max-w-[48px] rounded-t-lg transition-all duration-300"
+                      style={{ height: `${height}px`, backgroundColor: item.color }}
+                    />
+                    <span className="mt-2 text-[10px] font-medium text-[#64748B]">
+                      {item.label}
+                    </span>
                   </div>
-
-                  <div
-                    className="w-full max-w-[38px] rounded-t-lg bg-[#D62839] transition-all duration-300 hover:bg-[#A4161A]"
-                    style={{
-                      height: `${height}px`,
-                    }}
-                  />
-
-                  <span className="mt-2 text-[10px] font-medium text-[#64748B]">
-                    {item.group}
-                  </span>
-
-                </div>
-              );
-            })}
-
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-7 flex h-[260px] items-center justify-center text-sm text-[#64748B]">
+              No data available
+            </div>
+          )}
         </div>
 
       </section>
-
-      {/* =====================================================
-          DONATION STATUS
-      ===================================================== */}
 
       <section className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
@@ -632,13 +440,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* =====================================================
-          RECENT REQUESTS + FUNDING
-      ===================================================== */}
-
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-
-        {/* Recent Requests */}
 
         <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)] xl:col-span-2">
 
@@ -802,8 +604,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Funding Overview */}
-
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
           <div className="flex items-center gap-3">
@@ -834,26 +634,26 @@ useEffect(() => {
                 </p>
 
                 <p className="mt-1 text-2xl font-black text-[#111827]">
-                  ৳14,850
+                  {adminStats
+                    ? `$${(adminStats.funding?.total ?? 0).toLocaleString()}`
+                    : adminStatsLoading
+                      ? "Loading..."
+                      : "$0"}
                 </p>
               </div>
-
-              <span className="text-xs font-bold text-emerald-600">
-                78%
-              </span>
 
             </div>
 
             <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#F1F5F9]">
               <div
                 className="h-full rounded-full bg-[#D62839]"
-                style={{ width: "78%" }}
+                style={{ width: "0%" }}
               />
             </div>
 
             <div className="mt-2 flex justify-between text-[10px] text-[#94A3B8]">
-              <span>Raised</span>
-              <span>Goal ৳20,000</span>
+              <span>Community contributions</span>
+              <span>Thank you for supporting</span>
             </div>
 
           </div>
@@ -874,7 +674,7 @@ useEffect(() => {
             </div>
 
             <p className="mt-2 text-xs leading-5 text-[#64748B]">
-              ৳5,150 more funding is needed to reach the current goal.
+              Total community contributions to support BloodBridge.
             </p>
 
           </div>
@@ -882,10 +682,6 @@ useEffect(() => {
         </div>
 
       </section>
-
-      {/* =====================================================
-          RECENT USERS
-      ===================================================== */}
 
       <section className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
@@ -910,48 +706,6 @@ useEffect(() => {
 
         </div>
 
-        {/* <div className="grid grid-cols-1 divide-y divide-[#F1F5F9] md:grid-cols-2 md:divide-x md:divide-y-0">
-
-          {recentUsers.map((member) => (
-            <div
-              key={member.email}
-              className="flex items-center justify-between p-5 hover:bg-[#FFF7F8]"
-            >
-
-              <div className="flex items-center gap-3">
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDECEF] text-sm font-black text-[#D62839]">
-                  {member.name.charAt(0)}
-                </div>
-
-                <div>
-                  <p className="text-sm font-bold text-[#111827]">
-                    {member.name}
-                  </p>
-
-                  <p className="mt-0.5 text-xs text-[#64748B]">
-                    {member.email}
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="text-right">
-
-                <span className="inline-flex rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[10px] font-bold text-[#475569]">
-                  {member.role || "Unknown"}
-                </span>
-
-                <p className="mt-1 text-[10px] text-[#94A3B8]">
-                  {getRelativeTime(member.joined)}
-                </p>
-
-              </div>
-
-            </div>
-          ))}
-
-        </div> */}
         <div className="grid grid-cols-1 divide-y divide-[#F1F5F9] md:grid-cols-2 md:divide-x md:divide-y-0">
 
   {usersLoading ? (
@@ -982,7 +736,6 @@ useEffect(() => {
         className="flex items-center justify-between p-5 hover:bg-[#FFF7F8]"
       >
 
-        {/* User Info */}
         <div className="flex items-center gap-3">
 
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDECEF] text-sm font-black text-[#D62839]">
@@ -1001,7 +754,6 @@ useEffect(() => {
 
         </div>
 
-        {/* Role + Joined Time */}
         <div className="text-right">
 
           <span className="inline-flex rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[10px] font-bold text-[#475569]">

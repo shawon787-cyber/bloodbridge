@@ -1,15 +1,14 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { isBlockedUser } from "@/lib/isBlockedUser";
 import CreateDonation from "@/Components/dashboard/donor/CreateDonation";
 
 export default function CreateDonationPage() {
-  const { data: session, isPending } = useSession();
-  const user = session?.user;
+  const { user, isLoading } = useUser();
   const blocked = isBlockedUser(user);
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[300px] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />

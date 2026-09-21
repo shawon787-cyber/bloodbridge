@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -16,11 +15,11 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { isBlockedUser } from "@/lib/isBlockedUser";
+import { useUser } from "@/context/UserContext";
 import { toast } from "sonner";
 
 const FeaturesSection = () => {
-  const { data: session } = useSession();
-  const user = session?.user;
+  const { user } = useUser();
   const blocked = isBlockedUser(user);
 
   const handleCreateClick = (e) => {

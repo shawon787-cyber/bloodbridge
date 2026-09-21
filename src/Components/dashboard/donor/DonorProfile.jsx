@@ -20,13 +20,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useSession, authClient } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { toast } from "sonner";
 import { uploadProfileImage, getProfileImageUrl } from "@/lib/uploadProfileImage";
+import { apiFetch, apiFetchJSON, api } from "@/lib/api";
+import { getDistrictName } from "@/lib/locationUtils";
 
 export default function DonorProfile() {
-  const { data: session, isPending } = useSession();
-  const user = session?.user;
+  const { user, isLoading } = useUser();
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -69,38 +70,34 @@ export default function DonorProfile() {
      FETCH PROFILE FROM BACKEND
   ============================================================ */
 
-  useEffect(() => {
-    if (!user?.id) return;
+   useEffect(() => {
+     if (!user?.id) return;
 
-    const fetchProfile = async () => {
-      setIsLoadingProfile(true);
-      setProfileError(null);
+     const fetchProfile = async () => {
+       setIsLoadingProfile(true);
+       setProfileError(null);
 
-      try {
-        const response = await fetch(
-          `http://localhost:5000/api/user/${user.id}`
-        );
+       try {
+         const result = await apiFetchJSON(`/api/user/${user.id}`);
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch profile: ${response.status}`);
-        }
+         if (result.success && result.data) {
+           const data = result.data;
+           const userImage = data.image || user.image || "";
 
-        const result = await response.json();
+             setFormData({
+               fullName: data.name || "",
+               email: data.email || "",
+               image: userImage,
+               phone: data.phone || "",
+               bloodGroup: data.bloodGroup || "",
+               location: data.districtName || getDistrictName(data.district) || "",
+               address: data.address || data.fullAddress || "",
+               emergencyContact: data.emergencyContact || "",
+               dateOfBirth: data.dateOfBirth || "",
+               gender: data.gender || "",
+             });
 
-        if (result.success && result.data) {
-          const data = result.data;
-          const userImage = data.image || user.image || "";
-
-          setFormData({
-            fullName: data.name || "",
-            email: data.email || "",
-            image: userImage,
-            phone: data.phone || "",
-            bloodGroup: data.bloodGroup || "",
-            location: data.districtName || data.district || "",
-          });
-
-          if (userImage) {
+            if (userImage) {
             setProfileImageUrl(getProfileImageUrl(userImage));
           }
         }
@@ -222,13 +219,13 @@ export default function DonorProfile() {
     setPasswordMessage(null);
 
     try {
-      const { error } = await authClient.changePassword({
+      const data = await api.post("/api/auth/change-password", {
         currentPassword: passwordData.current,
         newPassword: passwordData.newPassword,
       });
 
-      if (error) {
-        const msg = error.message || "Failed to update password.";
+      if (!response.ok || !data.success) {
+        const msg = data.message || "Failed to update password.";
         setPasswordMessage({ type: "error", text: msg });
         toast.error(msg);
       } else {
@@ -275,31 +272,28 @@ export default function DonorProfile() {
         name: formData.fullName,
         phone: formData.phone,
         bloodGroup: formData.bloodGroup,
+        district: formData.location,
+        address: formData.address,
       };
 
-      const response = await fetch(
-        `http://localhost:5000/api/users/${user.id}/profile`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
+      const result = await apiFetchJSON(`/api/users/${user.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
 
       if (result.success && result.data) {
         const updatedUser = result.data;
         const updatedImage = updatedUser.image || profileImageUrl || "";
 
-        setFormData({
+        setFormData((prev) => ({
+          ...prev,
           fullName: updatedUser.name || "",
           email: updatedUser.email || "",
           phone: updatedUser.phone || "",
           bloodGroup: updatedUser.bloodGroup || "",
-        });
+          location: updatedUser.districtName || getDistrictName(updatedUser.district) || "",
+          address: updatedUser.address || "",
+        }));
 
         if (updatedImage) {
           setProfileImageUrl(getProfileImageUrl(updatedImage));
@@ -310,30 +304,6 @@ export default function DonorProfile() {
         setIsEditing(false);
 
         toast.success("Profile updated successfully");
-
-        const refreshed = await fetch(
-          `http://localhost:5000/api/user/${user.id}`
-        );
-
-        if (refreshed.ok) {
-          const refreshedResult = await refreshed.json();
-
-          if (refreshedResult.success && refreshedResult.data) {
-            const fresh = refreshedResult.data;
-            const freshImage = fresh.image || updatedImage;
-
-            setFormData({
-              fullName: fresh.name || "",
-              email: fresh.email || "",
-              phone: fresh.phone || "",
-              bloodGroup: fresh.bloodGroup || "",
-            });
-
-            if (freshImage) {
-              setProfileImageUrl(getProfileImageUrl(freshImage));
-            }
-          }
-        }
       } else {
         toast.error(result.message || "Failed to update profile");
       }
@@ -397,7 +367,7 @@ export default function DonorProfile() {
      LOADING
   ============================================================ */
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[500px] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
@@ -528,10 +498,10 @@ export default function DonorProfile() {
                     {formData.email}
                   </span>
 
-                  <span className="flex items-center justify-center gap-2 sm:justify-start">
-                    <MapPin size={15} />
-                    {formData.location}, Bangladesh
-                  </span>
+                   <span className="flex items-center justify-center gap-2 sm:justify-start">
+                     <MapPin size={15} />
+                     {getDistrictName(formData.location)}, Bangladesh
+                   </span>
 
                 </div>
 
@@ -703,7 +673,7 @@ export default function DonorProfile() {
               <InfoRow
                 icon={<MapPin size={16} />}
                 label="Location"
-                value={`${formData.location}, Bangladesh`}
+                value={`${getDistrictName(formData.location)}, Bangladesh`}
               />
 
             </div>

@@ -21,8 +21,11 @@ import {
 } from "lucide-react";
 import { normalizeStatusForCompare } from "@/lib/donationRequests";
 import { toast } from "sonner";
+import { useUser } from "@/context/UserContext";
+import { apiFetch, apiFetchJSON } from "@/lib/api";
 
 import StatusBadge from "@/Components/dashboard/shared/StatusBadge";
+import { getDistrictName, getUpazilaName } from "@/lib/locationUtils";
 
 const urgencyColor = (urgency) => {
   switch (urgency) {
@@ -93,10 +96,14 @@ const normalizeRequest = (req) => {
     req.upazilaId || req.upazila || "";
 
   const districtName =
-    req.districtName || "";
+    req.districtName ||
+    getDistrictName(req.district || req.districtId) ||
+    "";
 
   const upazilaName =
-    req.upazilaName || "";
+    req.upazilaName ||
+    getUpazilaName(req.upazila || req.upazilaId) ||
+    "";
 
   const requestId =
     typeof req._id === "object"
@@ -277,6 +284,7 @@ const SummaryItem = ({
 
 export default function DonationRequestDetailsPage() {
   const params = useParams();
+  const { user } = useUser();
 
   const [donationRequest, setDonationRequest] =
     useState(null);
@@ -293,31 +301,25 @@ export default function DonationRequestDetailsPage() {
 
   const handleRespondToRequest = async () => {
     if (!id || isResponding) return;
+
+    if (!user) {
+      toast.error("Please sign in to respond to this request.");
+      return;
+    }
+
     setIsResponding(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-      const res = await fetch(`${baseUrl}/api/donation-requests/${id}/status`, {
+      const result = await apiFetchJSON(`/api/donation-requests/${id}/donate`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: "inprogress" }),
-        cache: "no-store",
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${res.status}: Failed to respond to request`);
-      }
+      toast.success("You are now assigned to this donation request.");
 
-      const result = await res.json();
-      if (!result?.success) {
-        throw new Error(result?.message || "Failed to respond to request");
+      if (result?.data) {
+        setDonationRequest((prev) => prev ? { ...prev, ...result.data, statusDisplayLabel: "In Progress" } : prev);
+      } else {
+        setDonationRequest((prev) => prev ? { ...prev, status: "inprogress", statusDisplayLabel: "In Progress" } : prev);
       }
-
-      toast.success("Request moved to In Progress.");
-      
-      setDonationRequest((prev) => prev ? { ...prev, status: "inprogress", statusDisplayLabel: "In Progress" } : prev);
     } catch (err) {
       console.error("Failed to respond to request:", err);
       toast.error(err.message || "Failed to respond to request. Please try again.");
@@ -336,44 +338,7 @@ export default function DonationRequestDetailsPage() {
       setError(null);
 
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL;
-
-        const res = await fetch(
-          `${baseUrl}/api/donation-requests/${id}`
-        );
-
-        console.log("Donation Request ID:", id);
-
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error(
-              "Donation request not found"
-            );
-          }
-
-          if (res.status === 400) {
-            throw new Error(
-              "Invalid donation request ID"
-            );
-          }
-
-          throw new Error(
-            "Failed to load donation request"
-          );
-        }
-
-        const result = await res.json();
-
-        console.log(
-          "Donation Request API Response:",
-          result
-        );
-
-        console.log(
-          "Donation Request Data:",
-          result.data
-        );
+        const result = await apiFetchJSON(`/api/donation-requests/${id}`);
 
         if (!result.success || !result.data) {
           throw new Error(

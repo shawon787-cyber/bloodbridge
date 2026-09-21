@@ -12,8 +12,8 @@ import {
   LogOut,
   Droplet,
 } from "lucide-react";
-import { signOut, useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/context/UserContext";
 
 const navLinks = [
   {
@@ -39,9 +39,8 @@ const Navbar = () => {
   const [imageError, setImageError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
-  const { data:session, isPending } =useSession();
+  const { user, logout } = useUser();
   // console.log("Session data:", session, "Is pending:", isPending);
-  const user = session?.user;
   const profilePath =
   user?.role === "admin"
     ? "/admin/profile"
@@ -49,22 +48,14 @@ const Navbar = () => {
       ? "/volunteer/profile"
       : "/dashboard/profile";
 
-  // Replace this with your real authentication state
-  const isLoggedIn = !!session?.user;
-  const handleLogout = async () => {
-  try {
-    await signOut();
-
+  const isLoggedIn = !!user;
+  const handleLogout = () => {
+    logout();
     setUserMenu(false);
     setIsOpen(false);
 
-    
-    router.push("/");
-    router.refresh();
-  } catch (error) {
-    console.error("Logout failed:", error);
-  }
-};
+    router.push("/auth/SignInPage");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
@@ -147,7 +138,7 @@ const Navbar = () => {
                         src={user.image}
                         alt={user.name || "User"}
                         onError={() => setImageError(true)}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full rounded-sm object-cover"
                       />
                     ) : (
                       user?.name?.trim()?.charAt(0)?.toUpperCase() || "U"

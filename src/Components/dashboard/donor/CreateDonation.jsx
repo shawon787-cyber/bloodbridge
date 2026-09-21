@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useDonationRequests } from "@/context/DonationRequestContext";
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { isBlockedUser } from "@/lib/isBlockedUser";
 import { toast } from "sonner";
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
@@ -72,9 +72,9 @@ const urgencyLevels = [
 export default function CreateDonation() {
   const today = new Date().toISOString().split("T")[0];
   const { addDonationRequest, refreshDonationRequests } = useDonationRequests();
-  const { data: session, isPending: sessionPending } = useSession();
+  const { user, isLoading: sessionPending } = useUser();
 
-  const currentUser = session?.user;
+  const currentUser = user;
   const blocked = isBlockedUser(currentUser);
 
   const [formData, setFormData] = useState({
@@ -262,14 +262,11 @@ export default function CreateDonation() {
 
       const submissionData = {
         ...formData,
-        userId: currentUser?.id,
         districtId: formData.district,
         districtName: selectedDistrict?.name || "",
         districtBnName: selectedDistrict?.bn_name || "",
         upazilaId: formData.upazila,
         upazilaName: selectedUpazila?.name || "",
-        status: "Pending",
-        createdAt: new Date().toISOString(),
       };
 
       console.log("Submitting donation request:", submissionData);

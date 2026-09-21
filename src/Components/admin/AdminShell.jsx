@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import DashboardSidebar from "./DashboardSidebar";
 
 export default function AdminShell({ children }) {
@@ -12,14 +12,17 @@ export default function AdminShell({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { data: session, isPending } = useSession();
+  const { user, isLoading, logout } = useUser();
 
-  const user = session?.user;
   const role = user?.role;
 
-  // Redirect to the correct dashboard for the user's role
   useEffect(() => {
-    if (!role) return;
+    if (isLoading) return;
+
+    if (!user || !role) {
+      router.push("/auth/SignInPage");
+      return;
+    }
 
     if (role === "admin" && !pathname.startsWith("/admin")) {
       router.push("/admin");
@@ -28,25 +31,17 @@ export default function AdminShell({ children }) {
     } else if (role === "donor" && !pathname.startsWith("/dashboard")) {
       router.push("/dashboard");
     }
-  }, [role, pathname, router]);
+  }, [role, pathname, router, user, isLoading]);
 
   // Logout
-  const handleLogout = async () => {
-    try {
-      await signOut();
-
-      setSidebarOpen(false);
-
-      router.push("/");
-
-      router.refresh();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+  const handleLogout = () => {
+    logout();
+    setSidebarOpen(false);
+    router.push("/auth/SignInPage");
   };
 
   // Loading
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FFF7F8]">
         <p className="text-sm font-medium text-[#D62839]">

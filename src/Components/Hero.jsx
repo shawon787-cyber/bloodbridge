@@ -190,7 +190,7 @@ const Hero = () => {
 
                 {/* Search Button */}
                 <Link
-                  href="/search"
+                  href="/search-donors"
                   className="group flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#A4161A] hover:shadow-xl"
                 >
                   <Search size={17} />

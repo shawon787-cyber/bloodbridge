@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,6 +14,7 @@ import {
   History,
 } from "lucide-react";
 import { isBlockedUser } from "@/lib/isBlockedUser";
+import { useUser } from "@/context/UserContext";
 
 const menuItems = {
   admin: [
@@ -117,11 +117,11 @@ const DashboardSidebar = ({
 }) => {
   const pathname = usePathname();
 
-  const { data: session, isPending } = useSession();
+  const { user, isLoading } = useUser();
 
   // ================= SESSION LOADING =================
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <aside
         className="
@@ -171,7 +171,6 @@ const DashboardSidebar = ({
 
   // ================= SESSION LOADED =================
 
-  const user = session?.user;
   const role = user?.role;
 
   const currentRole =

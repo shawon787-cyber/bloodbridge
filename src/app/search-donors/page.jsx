@@ -11,7 +11,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Heart,
+  X,
 } from "lucide-react";
+import { apiFetchJSON } from "@/lib/api";
+
+import { getDistrictName, getUpazilaName } from "@/lib/locationUtils";
 
 import districtsData from "@/data/districts.json";
 import upazilasData from "@/data/upazilas.json";
@@ -41,22 +45,30 @@ const SearchDonorsPage = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedDonor, setSelectedDonor] = useState(null);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        setSelectedDonor(null);
+      }
+    };
+
+    if (selectedDonor) {
+      document.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [selectedDonor]);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchDonors = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-        const res = await fetch(`${baseUrl}/api/donors`, {
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch donors");
-        }
-
-        const result = await res.json();
+        const result = await apiFetchJSON("/api/donors");
 
         if (result.success !== true || !Array.isArray(result.data)) {
           throw new Error("Invalid API response");
@@ -134,11 +146,11 @@ const SearchDonorsPage = () => {
 
     return normalizedDonors.filter((donor) => {
       const matchesBlood = !bloodGroup || donor.bloodGroup === bloodGroup;
-      const matchesDistrict = !district || donor.district === selectedDistrict?.name;
+      const matchesDistrict = !district || getDistrictName(donor.district) === selectedDistrict?.name;
       const selectedUpazila = filteredUpazilas.find(
         (item) => String(item.id) === String(upazila)
       );
-      const matchesUpazila = !upazila || donor.upazila === selectedUpazila?.name;
+      const matchesUpazila = !upazila || getUpazilaName(donor.upazila) === selectedUpazila?.name;
       return matchesBlood && matchesDistrict && matchesUpazila;
     });
   }, [bloodGroup, district, upazila, hasSearched, normalizedDonors, isInitialized, selectedDistrict, filteredUpazilas]);
@@ -185,7 +197,8 @@ const SearchDonorsPage = () => {
   }, [totalPages, currentPage]);
 
   return (
-    <main className="min-h-screen bg-[#FFF9FA]">
+    <>
+      <main className="min-h-screen bg-[#FFF9FA]">
 
       {/* =====================================================
           HERO / SEARCH SECTION
@@ -769,8 +782,8 @@ const SearchDonorsPage = () => {
             </p>
 
              <p className="truncate text-xs font-bold text-slate-700">
-               {donor.district || "Not available"}
-             </p>
+                {getDistrictName(donor.district) || "Not available"}
+              </p>
           </div>
         </div>
 
@@ -786,8 +799,8 @@ const SearchDonorsPage = () => {
             </p>
 
              <p className="truncate text-xs font-bold text-slate-700">
-               {donor.upazila || "Not available"}
-             </p>
+                {getUpazilaName(donor.upazila) || "Not available"}
+              </p>
           </div>
         </div>
       </div>
@@ -835,6 +848,7 @@ const SearchDonorsPage = () => {
   {/* Contact Now */}
   <button
     type="button"
+    onClick={() => setSelectedDonor(donor)}
     className="group flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] text-xs font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(214,40,57,0.25)] active:translate-y-0 active:scale-[0.98]"
   >
     
@@ -922,6 +936,211 @@ const SearchDonorsPage = () => {
       </section>
 
     </main>
+
+    {selectedDonor && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 backdrop-blur-sm"
+        onClick={() => setSelectedDonor(null)}
+      >
+        <div
+          className="relative mx-4 my-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[26px] border border-slate-200/80 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.15)]"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Top Accent */}
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#F21D3B]" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 pb-0">
+            <h2 className="text-xl font-black text-slate-900">
+              Donor Details
+            </h2>
+
+            <button
+              type="button"
+              aria-label="Close modal"
+              onClick={() => setSelectedDonor(null)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 hover:bg-white hover:text-[#D62839] hover:shadow-[0_8px_20px_rgba(214,40,57,0.12)] transition-all duration-200"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {/* Name & Blood Donor */}
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#A4161A] via-[#D62839] to-[#F21D3B] text-white shadow-[0_8px_20px_rgba(214,40,57,0.22)]">
+                <Droplets size={20} fill="currentColor" />
+              </div>
+
+              <div>
+                <h3 className="truncate text-[17px] font-extrablack text-slate-900">
+                  {selectedDonor.name}
+                </h3>
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Blood Donor
+                </p>
+              </div>
+            </div>
+
+            {/* Blood Group Badge */}
+            <div className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-[#A4161A] via-[#D62839] to-[#F21D3B] px-4 py-2 text-sm font-black text-white shadow-[0_8px_20px_rgba(214,40,57,0.22)]">
+              <Droplets size={14} fill="currentColor" />
+              {selectedDonor.bloodGroup}
+            </div>
+
+            {/* Details Grid */}
+            <div className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-[2fr_3fr]">
+              {/* Blood Group */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFF0F2] text-[#D62839]">
+                  <Droplets size={15} fill="currentColor" />
+                </div>
+                <span className="text-xs font-medium text-slate-500">
+                  Blood Group
+                </span>
+              </div>
+              <div className="text-sm font-black text-[#D62839]">
+                {selectedDonor.bloodGroup}
+              </div>
+
+              {/* Status */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      selectedDonor.status?.toLowerCase() === "active"
+                        ? "bg-emerald-500"
+                        : "bg-slate-400"
+                    }`}
+                  />
+                </div>
+                <span className="text-xs font-medium text-slate-500">
+                  Status
+                </span>
+              </div>
+              <div
+                className={`text-xs font-black uppercase ${
+                  selectedDonor.status?.toLowerCase() === "active"
+                    ? "text-emerald-600"
+                    : "text-slate-500"
+                }`}
+              >
+                {selectedDonor.status || "Unknown"}
+              </div>
+
+              {/* District */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <MapPin size={14} />
+                </div>
+                <span className="text-xs font-medium text-slate-500">
+                  District
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-700">
+                 {getDistrictName(selectedDonor.district) || "Not available"}
+               </div>
+
+              {/* Upazila */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <MapPin size={14} />
+                </div>
+                <span className="text-xs font-medium text-slate-500">
+                  Upazila
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-700">
+                 {getUpazilaName(selectedDonor.upazila) || "Not available"}
+               </div>
+
+              {/* Email */}
+              {selectedDonor.email && (
+                <>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
+                    </div>
+                    <span className="text-xs font-medium text-slate-500">
+                      Email
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-slate-700 truncate">
+                    {selectedDonor.email}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Contact Actions */}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end sm:gap-3">
+              {selectedDonor.email && (
+                <a
+                  href={`mailto:${selectedDonor.email}`}
+                  className="group inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] px-6 text-xs font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(214,40,57,0.25)] active:translate-y-0 active:scale-[0.98]"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
+                  </svg>
+                  <span>Send Email</span>
+                </a>
+              )}
+
+              {selectedDonor.phoneNumber && (
+                <a
+                  href={`tel:${selectedDonor.phoneNumber}`}
+                  className="group inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A4161A] via-[#D62839] to-[#E12D3B] px-6 text-xs font-bold text-white shadow-[0_8px_20px_rgba(214,40,57,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(214,40,57,0.25)] active:translate-y-0 active:scale-[0.98]"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  <span>Call Donor</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    </>
   );
 };
 

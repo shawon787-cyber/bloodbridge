@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000";
+import { apiFetchJSON } from "@/lib/api";
 
 export async function uploadProfileImage(file, userId) {
   if (!file) {
@@ -16,21 +16,10 @@ export async function uploadProfileImage(file, userId) {
   const body = new FormData();
   body.append("image", file);
 
-  const response = await fetch(
-    `${BASE_URL}/api/users/${userId}/profile-image`,
-    {
-      method: "POST",
-      body,
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to upload profile image"
-    );
-  }
+  const result = await apiFetchJSON(`/api/users/${userId}/profile-image`, {
+    method: "POST",
+    body,
+  });
 
   return result.imageUrl;
 }

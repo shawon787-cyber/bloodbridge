@@ -53,7 +53,7 @@ const DonateCTA = () => {
 
             {/* Find Donor */}
             <Link
-              href="/search"
+              href="/search-donors"
               className="inline-flex items-center justify-center rounded-xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/20"
             >
               Find a Donor

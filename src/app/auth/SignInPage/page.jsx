@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { signIn } from "@/lib/auth-client";
+import { api } from "@/lib/api";
+import { useUser } from "@/context/UserContext";
 import {
   ArrowRight,
   CheckCircle2,
@@ -19,6 +20,7 @@ import {
 
 const SignInPage = () => {
   const router = useRouter();
+  const { login } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -36,53 +38,50 @@ const SignInPage = () => {
     }));
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!formData.email.trim() || !formData.password) {
-    toast.error("Email and password are required.");
-    return;
-  }
+    if (!formData.email.trim() || !formData.password) {
+      toast.error("Email and password are required.");
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const result = await signIn.email({
-      email: formData.email.trim().toLowerCase(),
-      password: formData.password,
-      callbackURL: "/",
-    });
+    try {
+      const data = await api.post("/api/auth/login", {
+        name: "",
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      });
 
-    console.log("LOGIN RESULT:", result);
+      if (!data.success || !data.token) {
+        toast.error(data.message || "Invalid email or password.");
+        return;
+      }
 
-    if (result?.error) {
+      login(data.token, data.data);
+
+      toast.success("Signed in successfully!");
+
+      const role = data.data?.role;
+      if (role === "admin") {
+        router.push("/admin");
+      } else if (role === "volunteer") {
+        router.push("/volunteer");
+      } else {
+        router.push("/dashboard");
+      }
+      router.refresh();
+    } catch (error) {
+      console.error("LOGIN ERROR:", error);
       toast.error(
-        result.error.message || "Invalid email or password."
+        error?.message || "Unable to connect to the server."
       );
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (!result?.data) {
-      toast.error("Invalid email or password.");
-      return;
-    }
-
-    toast.success("Signed in successfully!");
-
-    router.push("/");
-    router.refresh();
-
-  } catch (error) {
-    console.error("LOGIN ERROR:", error);
-
-    toast.error(
-      error?.message || "Invalid email or password."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
   return (
     <main className="min-h-screen bg-[#FFF7F8]">
 
@@ -141,10 +140,12 @@ const handleSubmit = async (e) => {
               >
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#D62839] shadow-lg transition-transform duration-300 group-hover:scale-105">
+
                   <HeartPulse
                     size={22}
                     strokeWidth={2.5}
                   />
+
                 </div>
 
                 <div>
@@ -328,7 +329,7 @@ const handleSubmit = async (e) => {
 
               {/* =================================================
                    FORM
-              ================================================== */}
+              ================================================= */}
 
               <form
                 onSubmit={handleSubmit}

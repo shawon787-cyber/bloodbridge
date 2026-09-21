@@ -25,6 +25,7 @@ import {
 
 import { useDonationRequests } from "@/context/DonationRequestContext";
 import { isBlockedUser } from "@/lib/isBlockedUser";
+import { apiFetchJSON } from "@/lib/api";
 
 
 
@@ -233,8 +234,8 @@ const donorStats = [
     color: "#16A34A",
   },
   {
-    label: "Total Donations", 
-    value: donationHistory.length, //this length is for all user length not individual
+    label: "Total Donations",
+    value: totalDonationsLoading ? "Loading..." : String(totalDonations),
     change: "Completed",
     icon: Award,
     color: "#F59E0B",
@@ -252,17 +253,7 @@ const donorStats = [
       setHistoryLoading(true);
       setHistoryError("");
 
-      const response = await fetch(
-        "http://localhost:5000/api/donation-history"
-      );
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || "Failed to fetch donation history"
-        );
-      }
+      const result = await apiFetchJSON("/api/donation-history");
 
       setDonationHistory(result.data || []);
     } catch (error) {
@@ -285,19 +276,9 @@ useEffect(() => {
     try {
       setTotalDonationsLoading(true);
 
-      const response = await fetch(
-        `http://localhost:5000/api/donation-count/${user.id}`
-      );
+      const result = await apiFetchJSON(`/api/donation-count/${user.id}`);
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || "Failed to fetch donation count"
-        );
-      }
-
-      setTotalDonations(result.count || 0);
+      setTotalDonations(result.data?.totalDonations ?? result.count ?? 0);
     } catch (error) {
       console.error("Total donation count error:", error);
       setTotalDonations(0);

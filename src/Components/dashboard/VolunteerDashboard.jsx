@@ -1,70 +1,70 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   ClipboardList,
   Droplets,
   CheckCircle2,
   Users,
   ArrowUpRight,
-  Bell,
   MapPin,
-  FileText,
 } from "lucide-react";
-
-const stats = [
-  {
-    label: "Assigned Requests",
-    value: "8",
-    change: "+2 new",
-    icon: ClipboardList,
-    color: "bg-blue-50 text-blue-600",
-  },
-  {
-    label: "Active Blood Requests",
-    value: "24",
-    change: "+5 today",
-    icon: Droplets,
-    color: "bg-red-50 text-red-600",
-  },
-  {
-    label: "Completed Requests",
-    value: "156",
-    change: "+12 this week",
-    icon: CheckCircle2,
-    color: "bg-emerald-50 text-emerald-600",
-  },
-  {
-    label: "Available Donors",
-    value: "89",
-    change: "Online now",
-    icon: Users,
-    color: "bg-purple-50 text-purple-600",
-  },
-];
-
-const assignedRequests = [
-  { id: "BR-101", name: "Salam Mia", blood: "A+", location: "Dhaka", urgency: "High", time: "30 min ago" },
-  { id: "BR-102", name: "Rahima Khatun", blood: "O-", location: "Chittagong", urgency: "Medium", time: "1 hour ago" },
-  { id: "BR-103", name: "Jamal Hossain", blood: "B+", location: "Sylhet", urgency: "Low", time: "2 hours ago" },
-  { id: "BR-104", name: "Nasreen Akter", blood: "AB+", location: "Dhaka", urgency: "High", time: "3 hours ago" },
-];
-
-const recentActivities = [
-  { action: "Request fulfilled", detail: "BR-099 - Rahim Uddin received A+ blood", time: "20 min ago", type: "success" },
-  { action: "New request assigned", detail: "BR-101 - Salam Mia needs A+ blood", time: "30 min ago", type: "info" },
-  { action: "Donor confirmed", detail: "Karim Hossain confirmed for BR-098", time: "1 hour ago", type: "success" },
-  { action: "Urgent alert", detail: "BR-100 - O- blood needed at DMH", time: "2 hours ago", type: "alert" },
-  { action: "Request updated", detail: "BR-097 status changed to fulfilled", time: "3 hours ago", type: "info" },
-];
-
-const quickActions = [
-  { label: "Find Donors", icon: Users, href: "#", desc: "Search available donors" },
-  { label: "Update Request", icon: FileText, href: "#", desc: "Update blood request status" },
-  { label: "Send Alert", icon: Bell, href: "#", desc: "Notify nearby donors" },
-  { label: "View Map", icon: MapPin, href: "#", desc: "See donor locations" },
-];
+import Link from "next/link";
+import { apiFetchJSON } from "@/lib/api";
 
 export default function VolunteerDashboard({ user }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await apiFetchJSON("/api/volunteer/stats");
+        if (data?.success && data?.data) {
+          setStats(data.data);
+        } else {
+          setError("Failed to load statistics.");
+        }
+      } catch (err) {
+        setError(err.message || "Failed to load statistics.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  const statCards = [
+    {
+      label: "Total Requests",
+      value: stats?.total ?? "—",
+      icon: ClipboardList,
+      color: "bg-blue-50 text-blue-600",
+    },
+    {
+      label: "Pending Requests",
+      value: stats?.pending ?? "—",
+      icon: Droplets,
+      color: "bg-red-50 text-red-600",
+    },
+    {
+      label: "In Progress",
+      value: stats?.inProgress ?? "—",
+      icon: Users,
+      color: "bg-amber-50 text-amber-600",
+    },
+    {
+      label: "Completed",
+      value: stats?.done ?? "—",
+      icon: CheckCircle2,
+      color: "bg-emerald-50 text-emerald-600",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -78,116 +78,105 @@ export default function VolunteerDashboard({ user }) {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div
-              key={stat.label}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              key={i}
+              className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
             >
               <div className="flex items-center justify-between">
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.color}`}
-                >
-                  <Icon size={22} strokeWidth={2} />
-                </div>
-                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                  <ArrowUpRight size={13} />
-                  {stat.change}
-                </span>
+                <div className="h-11 w-11 rounded-xl bg-slate-200" />
+                <div className="h-4 w-16 rounded bg-slate-100" />
               </div>
-              <div className="mt-4">
-                <p className="text-2xl font-black text-slate-900">{stat.value}</p>
-                <p className="mt-1 text-xs font-medium text-slate-500">{stat.label}</p>
-              </div>
+              <div className="mt-4 h-7 w-16 rounded bg-slate-200" />
+              <div className="mt-2 h-3 w-24 rounded bg-slate-100" />
             </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Assigned Requests */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <h3 className="text-sm font-bold text-slate-900">Assigned Blood Requests</h3>
-            <button className="text-xs font-semibold text-[#D62839] hover:underline">View All</button>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {assignedRequests.map((req) => (
-              <div key={req.id} className="flex items-center justify-between px-5 py-4 hover:bg-slate-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FDECEF] text-sm font-black text-[#D62839]">
-                    {req.blood}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{req.name}</p>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                      <MapPin size={12} />
-                      {req.location}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      req.urgency === "High"
-                        ? "bg-red-50 text-red-600"
-                        : req.urgency === "Medium"
-                        ? "bg-amber-50 text-amber-600"
-                        : "bg-slate-100 text-slate-600"
-                    }`}
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-600">
+          {error}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.color}`}
                   >
-                    {req.urgency}
-                  </span>
-                  <p className="mt-1 text-xs text-slate-400">{req.time}</p>
+                    <Icon size={22} strokeWidth={2} />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-2xl font-black text-slate-900">{stat.value}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{stat.label}</p>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-
-        {/* Recent Activities */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Recent Activities</h3>
-          <p className="mt-1 text-xs text-slate-500">Your latest volunteer activities</p>
-          <div className="mt-5 space-y-4">
-            {recentActivities.map((activity, i) => (
-              <div key={i} className="flex gap-3">
-                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#D62839]" />
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{activity.action}</p>
-                  <p className="text-xs text-slate-500">{activity.detail}</p>
-                  <p className="mt-1 text-xs text-slate-400">{activity.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Quick Actions */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-sm font-bold text-slate-900">Quick Actions</h3>
         <p className="mt-1 text-xs text-slate-500">Frequently used volunteer tools</p>
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.label}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
-                  <Icon size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{action.label}</p>
-                  <p className="text-xs text-slate-500">{action.desc}</p>
-                </div>
-              </button>
-            );
-          })}
+          <Link
+            href="/volunteer/requests"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+              <ClipboardList size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Manage Requests</p>
+              <p className="text-xs text-slate-500">View and update blood requests</p>
+            </div>
+          </Link>
+          <Link
+            href="/search-donors"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+              <MapPin size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Find Donors</p>
+              <p className="text-xs text-slate-500">Search available donors</p>
+            </div>
+          </Link>
+          <Link
+            href="/dashboard/funding"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+              <ArrowUpRight size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">View Funding</p>
+              <p className="text-xs text-slate-500">Community funding records</p>
+            </div>
+          </Link>
+          <Link
+            href="/dashboard/profile"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition-all hover:border-[#D62839]/30 hover:bg-[#FFF7F8]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDECEF] text-[#D62839]">
+              <Users size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">My Profile</p>
+              <p className="text-xs text-slate-500">Update your information</p>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

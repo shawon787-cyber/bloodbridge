@@ -8,6 +8,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, CheckCircle2, MapPin, HeartPulse, CalendarDays, Clock3 } from "lucide-react";
 import { normalizeStatusForCompare, getStatusDisplayLabel } from "@/lib/donationRequests";
 import { toast } from "sonner";
+import { apiFetchJSON } from "@/lib/api";
 
 export default function DonationRequestsPage() {
   const [requests, setRequests] = useState([]);
@@ -21,20 +22,7 @@ export default function DonationRequestsPage() {
 
     const fetchRequests = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-        const res = await fetch(`${baseUrl}/api/donation-requests`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch donation requests");
-        }
-
-        const result = await res.json();
+        const result = await apiFetchJSON("/api/donation-requests");
 
         if (isMounted && result.success && Array.isArray(result.data)) {
           setRequests(result.data);

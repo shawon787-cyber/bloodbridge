@@ -23,13 +23,14 @@ import {
   Clock,
   ClipboardList,
 } from "lucide-react";
-import { useSession, authClient } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { toast } from "sonner";
 import { uploadProfileImage, getProfileImageUrl } from "@/lib/uploadProfileImage";
+import { apiFetch, apiFetchJSON, api } from "@/lib/api";
+import { getDistrictName } from "@/lib/locationUtils";
 
 export default function VolunteerProfile() {
-  const { data: session, isPending } = useSession();
-  const user = session?.user;
+  const { user, isLoading } = useUser();
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -84,28 +85,20 @@ export default function VolunteerProfile() {
       setProfileError(null);
 
       try {
-        const response = await fetch(
-          `http://localhost:5000/api/user/${user.id}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch profile: ${response.status}`);
-        }
-
-        const result = await response.json();
+        const result = await apiFetchJSON(`/api/user/${user.id}`);
 
         if (result.success && result.data) {
           const data = result.data;
           const userImage = data.image || user.image || "";
 
-          setFormData({
-            fullName: data.name || "",
-            email: data.email || "",
-            image: userImage,
-            phone: data.phone || "",
-            bloodGroup: data.bloodGroup || "",
-            location: data.districtName || data.district || "",
-          });
+           setFormData({
+             fullName: data.name || "",
+             email: data.email || "",
+             image: userImage,
+             phone: data.phone || "",
+             bloodGroup: data.bloodGroup || "",
+             location: data.districtName || getDistrictName(data.district) || "",
+           });
 
           if (userImage) {
             setProfileImageUrl(getProfileImageUrl(userImage));
@@ -227,13 +220,13 @@ export default function VolunteerProfile() {
     setPasswordMessage(null);
 
     try {
-      const { error } = await authClient.changePassword({
+      const data = await api.post("/api/auth/change-password", {
         currentPassword: passwordData.current,
         newPassword: passwordData.newPassword,
       });
 
-      if (error) {
-        const msg = error.message || "Failed to update password.";
+      if (!response.ok || !data.success) {
+        const msg = data.message || "Failed to update password.";
         setPasswordMessage({ type: "error", text: msg });
         toast.error(msg);
       } else {
@@ -282,18 +275,10 @@ export default function VolunteerProfile() {
         bloodGroup: formData.bloodGroup,
       };
 
-      const response = await fetch(
-        `http://localhost:5000/api/users/${user.id}/profile`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
+      const result = await apiFetchJSON(`/api/users/${user.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
 
       if (result.success && result.data) {
         const updatedUser = result.data;
@@ -304,6 +289,7 @@ export default function VolunteerProfile() {
           email: updatedUser.email || "",
           phone: updatedUser.phone || "",
           bloodGroup: updatedUser.bloodGroup || "",
+          location: updatedUser.districtName || getDistrictName(updatedUser.district) || "",
         });
 
         if (updatedImage) {
@@ -316,12 +302,8 @@ export default function VolunteerProfile() {
 
         toast.success("Profile updated successfully");
 
-        const refreshed = await fetch(
-          `http://localhost:5000/api/user/${user.id}`
-        );
-
-        if (refreshed.ok) {
-          const refreshedResult = await refreshed.json();
+        try {
+          const refreshedResult = await apiFetchJSON(`/api/user/${user.id}`);
 
           if (refreshedResult.success && refreshedResult.data) {
             const fresh = refreshedResult.data;
@@ -332,12 +314,15 @@ export default function VolunteerProfile() {
               email: fresh.email || "",
               phone: fresh.phone || "",
               bloodGroup: fresh.bloodGroup || "",
+              location: fresh.districtName || getDistrictName(fresh.district) || "",
             });
 
             if (freshImage) {
               setProfileImageUrl(getProfileImageUrl(freshImage));
             }
           }
+        } catch {
+          // ignore refresh error
         }
       } else {
         toast.error(result.message || "Failed to update profile");
@@ -402,7 +387,7 @@ export default function VolunteerProfile() {
      LOADING
   ============================================================ */
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[500px] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FDECEF] border-t-[#D62839]" />
@@ -526,7 +511,7 @@ export default function VolunteerProfile() {
 
                   <span className="flex items-center justify-center gap-2 sm:justify-start">
                     <MapPin size={15} />
-                    {formData.location}, Bangladesh
+                    {getDistrictName(formData.location)}, Bangladesh
                   </span>
 
                 </div>
@@ -693,7 +678,7 @@ export default function VolunteerProfile() {
               <InfoRow
                 icon={<MapPin size={16} />}
                 label="Location"
-                value={`${formData.location}, Bangladesh`}
+                value={`${getDistrictName(formData.location)}, Bangladesh`}
               />
 
               <InfoRow

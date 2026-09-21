@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useDonationRequests } from "@/context/DonationRequestContext";
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import {
   Plus,
   ClipboardList,
@@ -17,11 +17,13 @@ import {
   Trash2,
   ChevronRight,
 } from "lucide-react";
-
 import { normalizeStatusForCompare, getStatusDisplayLabel } from "@/lib/donationRequests";
 import { isBlockedUser } from "@/lib/isBlockedUser";
+import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
+import Modal from "@/Components/dashboard/shared/Modal";
 
 
 const statusTabs = [
@@ -34,13 +36,13 @@ const statusTabs = [
 
 export default function MyDonationRequests() {
   const [activeTab, setActiveTab] = useState("All");
-  const { requests, isInitialized } = useDonationRequests();
-  const { data: session, isPending: sessionPending } = useSession();
+  const { requests, isInitialized, removeDonationRequest } = useDonationRequests();
+  const { user, isLoading: sessionPending } = useUser();
 
-  const currentUser = session?.user;
+  const currentUser = user;
   const blocked = isBlockedUser(currentUser);
 
-  const currentUserEmail = session?.user?.email?.toLowerCase();
+  const currentUserEmail = user?.email?.toLowerCase();
 
   const myDonationRequests = useMemo(() => {
     if (!currentUserEmail) return [];
@@ -83,6 +85,30 @@ export default function MyDonationRequests() {
   };
 
   const isLoading = sessionPending || !isInitialized;
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/donation-requests/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to delete request");
+      }
+      removeDonationRequest(deleteTarget.id);
+      toast.success("Request deleted successfully.");
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error(error.message || "Failed to delete request.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -422,8 +448,8 @@ export default function MyDonationRequests() {
                 <div className="flex items-center gap-2">
                   {/* View */}
 
-                  <button
-                    type="button"
+                  <Link
+                    href={`/donation-requests/${request.id}`}
                     className="
                       inline-flex items-center gap-1.5
                       rounded-lg
@@ -437,14 +463,14 @@ export default function MyDonationRequests() {
                   >
                     <Eye size={14} />
                     View
-                  </button>
+                  </Link>
 
                   {/* Edit */}
 
                   {normalizeStatusForCompare(request.status) !== "done" &&
                     normalizeStatusForCompare(request.status) !== "cancelled" && (
-                      <button
-                        type="button"
+                      <Link
+                        href={`/donation-requests/${request.id}/edit`}
                         className="
                           inline-flex items-center gap-1.5
                           rounded-lg
@@ -458,13 +484,14 @@ export default function MyDonationRequests() {
                       >
                         <Pencil size={14} />
                         Edit
-                      </button>
+                      </Link>
                     )}
 
                   {/* Delete */}
 
                   <button
                     type="button"
+                    onClick={() => setDeleteTarget(request)}
                     className="
                       inline-flex items-center justify-center
                       rounded-lg
@@ -480,8 +507,8 @@ export default function MyDonationRequests() {
                     <Trash2 size={14} />
                   </button>
 
-                  <button
-                    type="button"
+                  <Link
+                    href={`/donation-requests/${request.id}`}
                     className="
                       rounded-lg
                       p-2
@@ -492,13 +519,48 @@ export default function MyDonationRequests() {
                     "
                   >
                     <ChevronRight size={17} />
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Request"
+        width="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Are you sure you want to delete this donation request? This action cannot be undone.
+          </p>
+          {deleteTarget && (
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-sm font-semibold text-slate-900">{deleteTarget.recipientName}</p>
+              <p className="text-xs text-slate-500">#{deleteTarget.id}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

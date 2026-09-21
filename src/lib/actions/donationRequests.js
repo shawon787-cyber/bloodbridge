@@ -1,8 +1,8 @@
 'use server'
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+import { API_URL } from "@/lib/api";
 
 export const getDonationRequests = async () => {
-    const res = await fetch(`${baseUrl}/api/donation-requests`, {
+    const res = await fetch(`${API_URL}/api/donation-requests`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -16,7 +16,7 @@ export const getDonationRequests = async () => {
 };
 
 export const createDonationRequest = async (donationRequestData) => {
-    const res = await fetch(`${baseUrl}/api/donation-requests`, {
+    const res = await fetch(`${API_URL}/api/donation-requests`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -31,7 +31,7 @@ export const createDonationRequest = async (donationRequestData) => {
 };
 
 export const updateDonationRequestStatus = async (requestId, status) => {
-    const res = await fetch(`${baseUrl}/api/donation-requests/${requestId}/status`, {
+    const res = await fetch(`${API_URL}/api/donation-requests/${requestId}/status`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',

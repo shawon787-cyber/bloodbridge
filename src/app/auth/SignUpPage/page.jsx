@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { signUp } from "@/lib/auth-client";
+import { api } from "@/lib/api";
+import { useUser } from "@/context/UserContext";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,8 +16,8 @@ import {
   Mail,
   MapPin,
   UserRound,
-  Droplets,
   ShieldCheck,
+  Upload,
 } from "lucide-react";
 
 import districtsData from "@/data/districts.json";
@@ -27,14 +28,19 @@ const upazilas = upazilasData[2]?.data || [];
 
 const SignupPage = () => {
   const router = useRouter();
+  const { login } = useUser();
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
+
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    avatar: "",
     bloodGroup: "",
     district: "",
     upazila: "",
@@ -46,7 +52,6 @@ const SignupPage = () => {
   // ============================================
   // Handle normal input
   // ============================================
-
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -59,7 +64,6 @@ const SignupPage = () => {
   // ============================================
   // Handle District Change
   // ============================================
-
   const handleDistrictChange = (e) => {
     const districtId = e.target.value;
 
@@ -71,9 +75,37 @@ const SignupPage = () => {
   };
 
   // ============================================
+  // Handle Avatar Change
+  // ============================================
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    // Validate image type
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Profile image must be a JPG, PNG, or WEBP file.");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate image size - 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    setAvatarFile(file);
+
+    // Create preview
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+  };
+
+  // ============================================
   // Get Upazilas based on selected District
   // ============================================
-
   const filteredUpazilas = upazilas.filter(
     (upazila) =>
       String(upazila.district_id) === String(formData.district)
@@ -82,101 +114,131 @@ const SignupPage = () => {
   // ============================================
   // Submit
   // ============================================
-
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (formData.password !== formData.confirmPassword) {
-    toast.error("Passwords do not match.");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const { data, error } = await signUp.email({
-      email: formData.email,
-      password: formData.password,
-      name: formData.name,
-      image: formData.avatar,
-      bloodGroup: formData.bloodGroup,
-      district: formData.district,
-      upazila: formData.upazila,
-      role: formData.role,
-      callbackURL: "/",
-    });
-
-    if (error) {
-      toast.error(error.message || "Unable to create account.");
+    // Password validation
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
 
-    toast.success("Account created successfully!");
+    // Password length validation
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
 
-    router.push("/login");
-  } catch (err) {
-    toast.error(
-      err?.message || "Something went wrong. Please try again."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+    // Role validation
+    if (!["donor", "volunteer"].includes(formData.role)) {
+      toast.error("Please select a valid account type.");
+      return;
+    }
+
+    // Image validation
+    if (!avatarFile) {
+      toast.error("Please select a profile image.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // ==========================================
+      // Create multipart/form-data
+      // ==========================================
+      const data = new FormData();
+
+      data.append("name", formData.name.trim());
+      data.append("email", formData.email.trim().toLowerCase());
+      data.append("password", formData.password);
+      data.append("bloodGroup", formData.bloodGroup);
+      data.append("district", formData.district);
+      data.append("upazila", formData.upazila);
+      data.append("role", formData.role);
+      data.append("avatar", avatarFile);
+
+      // ==========================================
+      // Register
+      // ==========================================
+      const result = await api.upload(
+        "/api/auth/register",
+        data
+      );
+
+      if (result.success && result.token) {
+        login(result.token, result.data);
+
+        toast.success("Account created successfully!");
+
+        const role = result.data?.role || formData.role;
+
+        if (role === "volunteer") {
+          router.push("/volunteer");
+        } else {
+          router.push("/dashboard");
+        }
+
+        router.refresh();
+      } else {
+        toast.error(
+          result.message || "Unable to create account."
+        );
+      }
+    } catch (error) {
+      console.error("SIGNUP ERROR:", error);
+
+      toast.error(
+        error?.message ||
+          "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[#FFF7F8]">
-
       {/* ==========================================
           BACKGROUND
       =========================================== */}
-
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-
         <div className="absolute -left-40 -top-40 h-[450px] w-[450px] rounded-full bg-[#FCE4E7] blur-3xl" />
 
         <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-[#FDEBED] blur-3xl" />
-
       </div>
-
 
       {/* ==========================================
           MAIN CONTAINER
       =========================================== */}
-
       <div className="relative mx-auto flex min-h-screen max-w-[1440px] items-center px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-
         <div className="grid w-full overflow-hidden rounded-[32px] border border-[#F0DADD] bg-white shadow-[0_30px_100px_rgba(145,28,40,0.10)] lg:grid-cols-[0.9fr_1.1fr]">
-
 
           {/* ========================================
               LEFT BRAND SECTION
           ========================================= */}
-
           <section className="relative hidden overflow-hidden bg-[#8F1117] lg:block">
-
             <div className="absolute -left-28 -top-28 h-80 w-80 rounded-full border border-white/10" />
 
             <div className="absolute -bottom-40 -right-32 h-[450px] w-[450px] rounded-full border border-white/[0.07]" />
 
             <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#D62839]/30 blur-[110px]" />
 
-
             <div className="relative z-10 flex min-h-[720px] flex-col justify-between p-10 xl:p-14">
 
-
               {/* Logo */}
-
               <Link
                 href="/"
                 className="group flex w-fit items-center gap-3"
               >
-
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#D62839] shadow-lg transition-transform duration-300 group-hover:scale-105">
-                  <HeartPulse size={22} strokeWidth={2.5} />
+                  <HeartPulse
+                    size={22}
+                    strokeWidth={2.5}
+                  />
                 </div>
 
                 <div>
-
                   <p className="text-xl font-black tracking-tight text-white">
                     BloodBridge
                   </p>
@@ -184,139 +246,98 @@ const SignupPage = () => {
                   <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
                     Connect • Donate • Save
                   </p>
-
                 </div>
-
               </Link>
 
-
               {/* Main Message */}
-
               <div className="max-w-md">
-
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200">
                   Become a donor
                 </p>
 
-
                 <h1 className="mt-4 text-4xl font-black leading-[1.08] tracking-[-0.04em] text-white xl:text-5xl">
-
                   Your blood can
                   <br />
 
                   <span className="text-red-200">
                     give someone hope.
                   </span>
-
                 </h1>
 
-
                 <p className="mt-6 max-w-sm text-sm leading-7 text-red-100/70">
-                  Create your BloodBridge account and become part of a
-                  trusted community connecting donors with people who
-                  need blood when it matters most.
+                  Create your BloodBridge account and become
+                  part of a trusted community connecting donors
+                  with people who need blood when it matters
+                  most.
                 </p>
 
-
                 {/* Benefits */}
-
                 <div className="mt-8 space-y-4">
-
                   {[
                     "Create your personal donor profile",
                     "Connect with nearby blood requests",
                     "Help people in critical moments",
                   ].map((item) => (
-
                     <div
                       key={item}
                       className="flex items-center gap-3"
                     >
-
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-red-200">
-
                         <CheckCircle2
                           size={14}
                           strokeWidth={2.5}
                         />
-
                       </div>
 
                       <span className="text-sm font-medium text-white/80">
                         {item}
                       </span>
-
                     </div>
-
                   ))}
-
                 </div>
-
               </div>
 
-
               {/* Bottom */}
-
               <div className="flex items-center gap-3 border-t border-white/10 pt-6">
-
                 <ShieldCheck
                   size={19}
                   className="text-red-200"
                 />
 
                 <p className="text-xs leading-5 text-white/45">
-                  Your information helps BloodBridge connect you
-                  with people who need help.
+                  Your information helps BloodBridge connect
+                  you with people who need help.
                 </p>
-
               </div>
-
             </div>
-
           </section>
-
 
           {/* ========================================
               SIGNUP FORM
           ========================================= */}
-
           <section className="flex items-center justify-center px-5 py-10 sm:px-8 lg:px-12 xl:px-16">
-
             <div className="w-full max-w-xl">
 
-
               {/* Mobile Logo */}
-
               <div className="mb-8 flex justify-center lg:hidden">
-
                 <Link
                   href="/"
                   className="flex items-center gap-2.5"
                 >
-
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D62839] text-white shadow-md">
-
                     <HeartPulse size={20} />
-
                   </div>
 
                   <span className="text-xl font-black text-[#171717]">
                     BloodBridge
                   </span>
-
                 </Link>
-
               </div>
 
-
               {/* Header */}
-
               <div className="mb-7">
-
                 <div className="flex items-center justify-between">
-
                   <div>
-
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D62839]">
                       Join BloodBridge
                     </p>
@@ -324,46 +345,90 @@ const SignupPage = () => {
                     <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-[#171717] sm:text-4xl">
                       Create account
                     </h2>
-
                   </div>
-
 
                   <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF0F2] text-[#D62839] sm:flex">
-
                     <HeartPulse size={23} />
-
                   </div>
-
                 </div>
 
-
                 <p className="mt-3 text-sm leading-6 text-[#777777]">
-                  Register as a donor and help make blood available
-                  when someone needs it most.
+                  Register as a donor or volunteer and help make
+                  blood available when someone needs it most.
                 </p>
-
               </div>
-
 
               {/* ======================================
                   FORM
               ======================================= */}
-
               <form
                 onSubmit={handleSubmit}
                 className="space-y-5"
               >
 
+                {/* ======================================
+                    PROFILE IMAGE
+                ======================================= */}
+                <div>
+                  <label
+                    htmlFor="avatar"
+                    className="mb-2 block text-xs font-bold text-[#333333]"
+                  >
+                    Profile Image
+                  </label>
 
-                {/* Name + Email */}
+                  <div className="flex items-center gap-4 rounded-xl border border-[#E8DADC] bg-[#FFFCFC] p-4">
 
+                    {/* Preview */}
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FFF0F2] text-[#D62839] ring-4 ring-[#FFF0F2]">
+                      {avatarPreview ? (
+                        <img
+                          src={avatarPreview}
+                          alt="Profile preview"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <UserRound size={28} />
+                      )}
+                    </div>
+
+                    {/* Upload */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Upload
+                          size={16}
+                          className="text-[#D62839]"
+                        />
+
+                        <span className="text-xs font-bold text-[#444444]">
+                          Upload profile photo
+                        </span>
+                      </div>
+
+                      <input
+                        id="avatar"
+                        name="avatar"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleAvatarChange}
+                        required
+                        className="mt-2 block w-full text-xs text-[#777777] file:mr-3 file:rounded-lg file:border-0 file:bg-[#FFF0F2] file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#D62839] hover:file:bg-[#FDEBED]"
+                      />
+
+                      <p className="mt-1.5 text-[10px] text-[#999999]">
+                        JPG, PNG or WEBP • Maximum 5MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ======================================
+                    NAME + EMAIL
+                ======================================= */}
                 <div className="grid gap-5 sm:grid-cols-2">
 
-
                   {/* Name */}
-
                   <div>
-
                     <label
                       htmlFor="name"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -372,7 +437,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <UserRound
                         size={17}
                         className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -388,16 +452,11 @@ const SignupPage = () => {
                         placeholder="Your full name"
                         className="h-12 w-full rounded-xl border border-[#E8DADC] bg-[#FFFCFC] pl-11 pr-4 text-sm outline-none transition-all duration-200 placeholder:text-[#B5B5B5] focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
                       />
-
                     </div>
-
                   </div>
 
-
                   {/* Email */}
-
                   <div>
-
                     <label
                       htmlFor="email"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -406,7 +465,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <Mail
                         size={17}
                         className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -422,47 +480,48 @@ const SignupPage = () => {
                         placeholder="you@example.com"
                         className="h-12 w-full rounded-xl border border-[#E8DADC] bg-[#FFFCFC] pl-11 pr-4 text-sm outline-none transition-all duration-200 placeholder:text-[#B5B5B5] focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
                       />
-
                     </div>
-
                   </div>
-
                 </div>
 
-
-                {/* Avatar */}
-
+                {/* ======================================
+                    ROLE
+                ======================================= */}
                 <div>
-
                   <label
-                    htmlFor="avatar"
+                    htmlFor="role"
                     className="mb-2 block text-xs font-bold text-[#333333]"
                   >
-                    Avatar URL
+                    Account Type
                   </label>
 
-                  <input
-                    id="avatar"
-                    name="avatar"
-                    type="url"
-                    required
-                    value={formData.avatar}
+                  <select
+                    id="role"
+                    name="role"
+                    value={formData.role}
                     onChange={handleChange}
-                    placeholder="Paste your ImageBB image URL"
-                    className="h-12 w-full rounded-xl border border-[#E8DADC] bg-[#FFFCFC] px-4 text-sm outline-none transition-all duration-200 placeholder:text-[#B5B5B5] focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
-                  />
+                    required
+                    className="h-12 w-full appearance-none rounded-xl border border-[#E8DADC] bg-[#FFFCFC] px-4 text-sm text-[#555555] outline-none transition-all focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
+                  >
+                    <option value="donor">
+                      Donor
+                    </option>
 
-                  <p className="mt-1.5 text-[10px] text-[#AAAAAA]">
-                    Upload your avatar to ImageBB and paste the image URL here.
+                    <option value="volunteer">
+                      Volunteer
+                    </option>
+                  </select>
+
+                  <p className="mt-1.5 text-[10px] text-[#999999]">
+                    Choose whether you want to register as a donor
+                    or volunteer.
                   </p>
-
                 </div>
 
-
-                {/* Blood Group */}
-
+                {/* ======================================
+                    BLOOD GROUP
+                ======================================= */}
                 <div>
-
                   <label
                     htmlFor="bloodGroup"
                     className="mb-2 block text-xs font-bold text-[#333333]"
@@ -478,7 +537,6 @@ const SignupPage = () => {
                     required
                     className="h-12 w-full appearance-none rounded-xl border border-[#E8DADC] bg-[#FFFCFC] px-4 text-sm text-[#555555] outline-none transition-all focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
                   >
-
                     <option value="">
                       Select blood group
                     </option>
@@ -493,58 +551,23 @@ const SignupPage = () => {
                       "O+",
                       "O-",
                     ].map((group) => (
-
                       <option
                         key={group}
                         value={group}
                       >
                         {group}
                       </option>
-
                     ))}
-
                   </select>
-
                 </div>
-                {/* Account Role */}
 
-<div>
-  <label
-    htmlFor="role"
-    className="mb-2 block text-xs font-bold text-[#333333]"
-  >
-    Account Type
-  </label>
-
-  <select
-    id="role"
-    name="role"
-    value={formData.role}
-    onChange={handleChange}
-    required
-    className="h-12 w-full appearance-none rounded-xl border border-[#E8DADC] bg-[#FFFCFC] px-4 text-sm text-[#555555] outline-none transition-all focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
-  >
-    <option value="donor">Donor</option>
-    <option value="volunteer">Volunteer</option>
-  </select>
-
-  <p className="mt-1.5 text-[10px] text-[#AAAAAA]">
-    Choose how you want to participate in BloodBridge.
-  </p>
-</div>
-
-
-                {/* =====================================
+                {/* ======================================
                     DISTRICT + UPAZILA
-                ====================================== */}
-
+                ======================================= */}
                 <div className="grid gap-5 sm:grid-cols-2">
 
-
                   {/* District */}
-
                   <div>
-
                     <label
                       htmlFor="district"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -553,7 +576,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <MapPin
                         size={17}
                         className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -567,33 +589,24 @@ const SignupPage = () => {
                         required
                         className="h-12 w-full appearance-none rounded-xl border border-[#E8DADC] bg-[#FFFCFC] pl-11 pr-4 text-sm text-[#555555] outline-none transition-all focus:border-[#D62839] focus:bg-white focus:ring-4 focus:ring-[#D62839]/10"
                       >
-
                         <option value="">
                           Select district
                         </option>
 
                         {districts.map((district) => (
-
                           <option
                             key={district.id}
                             value={district.id}
                           >
                             {district.name}
                           </option>
-
                         ))}
-
                       </select>
-
                     </div>
-
                   </div>
 
-
                   {/* Upazila */}
-
                   <div>
-
                     <label
                       htmlFor="upazila"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -602,7 +615,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <MapPin
                         size={17}
                         className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -621,7 +633,6 @@ const SignupPage = () => {
                             : "cursor-not-allowed border-[#EEEEEE] bg-[#F5F5F5] text-[#AAAAAA]"
                         }`}
                       >
-
                         <option value="">
                           {formData.district
                             ? "Select upazila"
@@ -629,40 +640,32 @@ const SignupPage = () => {
                         </option>
 
                         {filteredUpazilas.map((upazila) => (
-
                           <option
                             key={upazila.id}
                             value={upazila.id}
                           >
                             {upazila.name}
                           </option>
-
                         ))}
-
                       </select>
-
                     </div>
 
-                    {formData.district && filteredUpazilas.length === 0 && (
-                      <p className="mt-1.5 text-[10px] text-red-500">
-                        No upazila found for this district.
-                      </p>
-                    )}
-
+                    {formData.district &&
+                      filteredUpazilas.length === 0 && (
+                        <p className="mt-1.5 text-[10px] text-red-500">
+                          No upazila found for this district.
+                        </p>
+                      )}
                   </div>
-
                 </div>
 
-
-                {/* Password */}
-
+                {/* ======================================
+                    PASSWORD + CONFIRM PASSWORD
+                ======================================= */}
                 <div className="grid gap-5 sm:grid-cols-2">
 
-
                   {/* Password */}
-
                   <div>
-
                     <label
                       htmlFor="password"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -671,7 +674,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <LockKeyhole
                         size={17}
                         className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -680,7 +682,11 @@ const SignupPage = () => {
                       <input
                         id="password"
                         name="password"
-                        type={showPassword ? "text" : "password"}
+                        type={
+                          showPassword
+                            ? "text"
+                            : "password"
+                        }
                         required
                         minLength={6}
                         value={formData.password}
@@ -692,28 +698,23 @@ const SignupPage = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          setShowPassword((prev) => !prev)
+                          setShowPassword(
+                            (prev) => !prev
+                          )
                         }
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#999999] hover:text-[#D62839]"
                       >
-
                         {showPassword ? (
                           <EyeOff size={18} />
                         ) : (
                           <Eye size={18} />
                         )}
-
                       </button>
-
                     </div>
-
                   </div>
 
-
                   {/* Confirm Password */}
-
                   <div>
-
                     <label
                       htmlFor="confirmPassword"
                       className="mb-2 block text-xs font-bold text-[#333333]"
@@ -722,7 +723,6 @@ const SignupPage = () => {
                     </label>
 
                     <div className="relative">
-
                       <LockKeyhole
                         size={17}
                         className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A5A5A5]"
@@ -752,31 +752,27 @@ const SignupPage = () => {
                         }
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#999999] hover:text-[#D62839]"
                       >
-
                         {showConfirmPassword ? (
                           <EyeOff size={18} />
                         ) : (
                           <Eye size={18} />
                         )}
-
                       </button>
-
                     </div>
-
                   </div>
-
                 </div>
 
-
-                {/* Submit */}
-
+                {/* ======================================
+                    SUBMIT
+                ======================================= */}
                 <button
                   type="submit"
                   disabled={loading}
                   className="group flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#D62839] px-5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(214,40,57,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#B91C2C] hover:shadow-[0_14px_30px_rgba(214,40,57,0.25)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-
-                  {loading ? "Creating Account..." : "Create Donor Account"}
+                  {loading
+                    ? "Creating Account..."
+                    : "Create Account"}
 
                   {!loading && (
                     <ArrowRight
@@ -784,14 +780,10 @@ const SignupPage = () => {
                       className="transition-transform duration-300 group-hover:translate-x-1"
                     />
                   )}
-
                 </button>
 
-
                 {/* Login */}
-
                 <p className="text-center text-sm text-[#888888]">
-
                   Already have an account?{" "}
 
                   <Link
@@ -800,37 +792,26 @@ const SignupPage = () => {
                   >
                     Sign in
                   </Link>
-
                 </p>
 
-
                 {/* Note */}
-
                 <div className="flex items-start gap-2 rounded-xl bg-[#FFF7F8] p-3">
-
                   <ShieldCheck
                     size={16}
                     className="mt-0.5 shrink-0 text-[#D62839]"
                   />
 
                   <p className="text-[10px] leading-5 text-[#999999]">
-                    Your account will be created with an active donor
-                    status by default. You can update your profile
-                    information later from your dashboard.
+                    Your account will be created with the selected
+                    donor or volunteer role. You can update your
+                    profile information later from your dashboard.
                   </p>
-
                 </div>
-
               </form>
-
             </div>
-
           </section>
-
         </div>
-
       </div>
-
     </main>
   );
 };

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import RequestCard from "@/Components/shared/RequestCard";
 import { normalizeStatusForCompare, getLatestRequests } from "@/lib/donationRequests";
+import { apiFetchJSON } from "@/lib/api";
 
 const LatestPendingRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -14,20 +15,7 @@ const LatestPendingRequests = () => {
 
     const fetchRequests = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-        const res = await fetch(`${baseUrl}/api/donation-requests`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch donation requests");
-        }
-
-        const result = await res.json();
+        const result = await apiFetchJSON("/api/donation-requests");
 
         if (isMounted && result.success && Array.isArray(result.data)) {
           setRequests(result.data);

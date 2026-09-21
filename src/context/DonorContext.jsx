@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { apiFetchJSON } from "@/lib/api";
 
 const DonorContext = createContext(null);
 
@@ -9,25 +10,14 @@ export const DonorProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
   const fetchDonors = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${baseUrl}/api/donors`, {
-        cache: "no-store",
-      });
+      const result = await apiFetchJSON("/api/donors");
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch donors");
-      }
-
-      const data = await response.json();
-
-      setDonors(Array.isArray(data) ? data : data.donors || []);
+      setDonors(Array.isArray(result.data) ? result.data : []);
     } catch (error) {
       console.error("Failed to fetch donors:", error);
       setDonors([]);

@@ -1,21 +1,21 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import DonorDashboard from "@/Components/dashboard/DonorDashboard";
 
 export default function DashboardPage() {
-  const { data: session, isPending } = useSession();
+  const { user, isLoading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isPending && !session?.user) {
+    if (!isLoading && !user) {
       router.push("/auth/SignInPage");
     }
-  }, [session, isPending, router]);
+  }, [user, isLoading, router]);
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -28,9 +28,9 @@ export default function DashboardPage() {
     );
   }
 
-  if (!session?.user) {
+  if (!user) {
     return null;
   }
 
-  return <DonorDashboard user={session.user} />;
+  return <DonorDashboard user={user} />;
 }

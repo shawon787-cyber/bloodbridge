@@ -1,12 +1,11 @@
 "use client";
 
 import { Bell, ChevronDown, Menu } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { useUser } from "@/context/UserContext";
 
 const AdminHeader = ({ onMenuClick }) => {
-  const { data: session } = useSession();
+  const { user } = useUser();
 
-  const user = session?.user;
   const role = user?.role || "donor";
 
   // Role অনুযায়ী information

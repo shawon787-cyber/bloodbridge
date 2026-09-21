@@ -12,7 +12,9 @@ import {
   Users,
   Shield,
 } from "lucide-react";
+import { toast } from "sonner";
 
+import { apiFetch, apiFetchJSON } from "@/lib/api";
 
 import PageHeader from "@/Components/dashboard/shared/PageHeader";
 import StatCard from "@/Components/dashboard/shared/StatCard";
@@ -22,23 +24,26 @@ import EmptyState from "@/Components/dashboard/shared/EmptyState";
 import Modal from "@/Components/dashboard/shared/Modal";
 
 export default function AdminUsers() {
-  
+
 
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   useEffect(() => {
   const fetchUsers = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/admin/users"
-      );
-
-      const result = await response.json();
-
+      setLoading(true);
+      setError("");
+      const result = await apiFetchJSON("/api/admin/users");
       if (result.success) {
         setUsers(result.data);
+      } else {
+        setError("Failed to load users.");
       }
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
+    } catch (err) {
+      setError(err.message || "Failed to fetch users:");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -53,7 +58,7 @@ export default function AdminUsers() {
 
   const itemsPerPage = 5;
 
-  const roles = ["Donor", "Volunteer", "Admin"];
+  const roles = ["Donor", "Volunteer", "admin"];
   const statuses = ["Active", "Inactive", "Suspended"];
 
   // =========================
@@ -106,9 +111,12 @@ export default function AdminUsers() {
     (user) => user.role === "Volunteer"
   ).length;
 
+  // const admins = users.filter(
+  //   (user) => user.role === "admin"
+  // ).length;
   const admins = users.filter(
-    (user) => user.role === "admin"
-  ).length;
+  (user) => user.role?.toLowerCase() === "admin"
+).length;
 
   // =========================
   // Clear Filters
@@ -125,116 +133,82 @@ export default function AdminUsers() {
   // Donor <-> Volunteer
   // =========================
   const handleToggleRole = async () => {
-  if (!selectedUser) return;
+   if (!selectedUser) return;
 
-  // Administrator role cannot be changed
-  if (selectedUser.role === "Admin") {
-    return;
-  }
+   if (selectedUser.role === "Admin") {
+     return;
+   }
 
-  try {
-    const response = await fetch(
-      `http://localhost:5000/api/admin/users/${selectedUser.id}/toggle-role`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+   try {
+     const result = await apiFetchJSON(`/api/admin/users/${selectedUser.id}/toggle-role`, {
+       method: "PATCH",
+     });
 
-    const result = await response.json();
+     const backendUser = result.data;
 
-    if (!response.ok || !result.success) {
-      throw new Error(
-        result.message || "Failed to change user role"
-      );
-    }
+     const updatedUser = {
+       ...selectedUser,
+       role:
+         backendUser.role === "donor"
+           ? "Donor"
+           : backendUser.role === "volunteer"
+           ? "Volunteer"
+           : "Admin",
+     };
 
-    // Backend থেকে updated user পাওয়া যাচ্ছে
-    const backendUser = result.data;
+     setUsers((prevUsers) =>
+       prevUsers.map((user) =>
+         user.id === selectedUser.id
+           ? updatedUser
+           : user
+       )
+     );
 
-    // Backend role -> frontend display role
-    const updatedUser = {
-      ...selectedUser,
-      role:
-        backendUser.role === "donor"
-          ? "Donor"
-          : backendUser.role === "volunteer"
-          ? "Volunteer"
-          : "Admin",
-    };
+     setSelectedUser(updatedUser);
+     toast.success("User role updated successfully.");
+   } catch (error) {
+     console.error("Failed to toggle role:", error);
+     toast.error(error.message || "Failed to change user role");
+   }
+ };
 
-    // Users table update
-    setUsers((prevUsers) =>
-      prevUsers.map((user) =>
-        user.id === selectedUser.id
-          ? updatedUser
-          : user
-      )
-    );
+ const handleToggleStatus = async () => {
+   if (!selectedUser) return;
 
-    // Modal update
-    setSelectedUser(updatedUser);
+   const isActive = selectedUser.status === "Active";
 
-  } catch (error) {
-    console.error("Failed to toggle role:", error);
-    alert(error.message || "Failed to change user role");
-  }
-};
+   try {
+     const endpoint = isActive
+       ? `/api/admin/users/${selectedUser.id}/block`
+       : `/api/admin/users/${selectedUser.id}/unblock`;
 
-  // =========================
-  // Toggle Status
-  // Active <-> Suspended
-  // =========================
-  const handleToggleStatus = async () => {
-  if (!selectedUser) return;
+     const result = await apiFetchJSON(endpoint, {
+       method: "PATCH",
+     });
 
-  const isActive = selectedUser.status === "Active";
+     const updatedUser = {
+       ...selectedUser,
+       status:
+         result.data.status === "blocked"
+           ? "Blocked"
+           : "Active",
+     };
 
-  try {
-    const endpoint = isActive
-      ? `http://localhost:5000/api/admin/users/${selectedUser.id}/block`
-      : `http://localhost:5000/api/admin/users/${selectedUser.id}/unblock`;
+     setUsers((prevUsers) =>
+       prevUsers.map((user) =>
+         user.id === selectedUser.id
+           ? updatedUser
+           : user
+       )
+     );
 
-    const response = await fetch(endpoint, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      throw new Error(
-        result.message || "Failed to update user status"
-      );
-    }
-
-    const updatedUser = {
-      ...selectedUser,
-      status:
-        result.data.status === "blocked"
-          ? "Blocked"
-          : "Active",
-    };
-
-    setUsers((prevUsers) =>
-      prevUsers.map((user) =>
-        user.id === selectedUser.id
-          ? updatedUser
-          : user
-      )
-    );
-
-    setSelectedUser(updatedUser);
-
-  } catch (error) {
-    console.error("Failed to update status:", error);
-    alert(error.message || "Failed to update user status");
-  }
-};
+     setSelectedUser(updatedUser);
+     toast.success(`User ${updatedUser.status === "Blocked" ? "blocked" : "activated"} successfully.`);
+   } catch (error) {
+     console.error("Failed to update status:", error);
+     toast.error(error.message || "Failed to update user status");
+   }
+ };
 
   // =========================
   // Delete User
@@ -417,7 +391,24 @@ export default function AdminUsers() {
 
             <tbody>
 
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={8}>
+                    <div className="flex items-center justify-center py-12">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#D62839] border-t-transparent" />
+                      <p className="ml-3 text-sm text-slate-500">Loading users...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={8}>
+                    <div className="flex items-center justify-center py-12 text-sm text-red-500">
+                      {error}
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
                     <EmptyState

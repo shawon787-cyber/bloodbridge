@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Heart,
   WalletCards,
@@ -12,97 +13,183 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-
-const mockFundingRecords = [
-  {
-    id: 1,
-    name: "Sabbir Rahman",
-    image: "",
-    amount: 2500,
-    date: "2026-08-06",
-  },
-  {
-    id: 2,
-    name: "Ayesha Rahman",
-    image: "",
-    amount: 1000,
-    date: "2026-08-04",
-  },
-  {
-    id: 3,
-    name: "Arif Hossain",
-    image: "",
-    amount: 5000,
-    date: "2026-08-01",
-  },
-  {
-    id: 4,
-    name: "Mim Akter",
-    image: "",
-    amount: 750,
-    date: "2026-07-29",
-  },
-  {
-    id: 5,
-    name: "Rifat Islam",
-    image: "",
-    amount: 1500,
-    date: "2026-07-25",
-  },
-  {
-    id: 6,
-    name: "Nusrat Jahan",
-    image: "",
-    amount: 2000,
-    date: "2026-07-21",
-  },
-  {
-    id: 7,
-    name: "Tanvir Ahmed",
-    image: "",
-    amount: 2100,
-    date: "2026-07-18",
-  },
-];
+import { toast } from "sonner";
+import { apiFetchJSON } from "@/lib/api";
+import Modal from "@/Components/dashboard/shared/Modal";
 
 const ITEMS_PER_PAGE = 5;
 
-export default function FundingPage({
-  records,
-  loading = false,
-  onDonate,
-}) {
+export default function FundingPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const verificationHandled = useRef("");
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [donorName, setDonorName] = useState("");
+  const [fundAmount, setFundAmount] = useState("");
+  const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
 
-  const data = records && records.length > 0 ? records : mockFundingRecords;
+  const closeFundModal = () => {
+    if (isCreatingCheckout) return;
+    setIsFundModalOpen(false);
+    setDonorName("");
+    setFundAmount("");
+  };
+
+  const handleCreateCheckout = async (event) => {
+    event.preventDefault();
+
+    const trimmedName = donorName.trim();
+    const amountNumber = Number(fundAmount);
+
+    if (!trimmedName) {
+      toast.error("Please enter your name.");
+      return;
+    }
+
+    if (!fundAmount.trim() || !Number.isFinite(amountNumber) || amountNumber <= 0) {
+      toast.error("Please enter a valid amount greater than zero.");
+      return;
+    }
+
+    try {
+      setIsCreatingCheckout(true);
+
+      const response = await apiFetchJSON("/api/funding/create-checkout-session", {
+        method: "POST",
+        body: JSON.stringify({
+          name: trimmedName,
+          amount: amountNumber,
+        }),
+      });
+
+      if (!response?.success || !response?.url) {
+        throw new Error(response?.message || "Unable to start payment.");
+      }
+
+      window.location.href = response.url;
+    } catch (error) {
+      toast.error(error.message || "Unable to start payment.");
+      setIsCreatingCheckout(false);
+    }
+  };
+
+  const fetchFunding = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await apiFetchJSON("/api/funding");
+      if (data?.success && Array.isArray(data.data)) {
+        setRecords(data.data.map((record) => ({
+          id: record._id || record.id,
+          name: record.name || record.userName || "Anonymous",
+          image: record.image || record.userImage || "",
+          amount: record.amount || 0,
+          date: record.createdAt || record.date || "",
+        })));
+      } else {
+        setRecords([]);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load funding records.");
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadFunding = async () => {
+      await fetchFunding();
+    };
+
+    loadFunding();
+  }, [fetchFunding]);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const sessionId = searchParams.get("session_id");
+    const handlingKey = `${payment || ""}:${sessionId || ""}`;
+
+    if (!payment || verificationHandled.current === handlingKey) return;
+    verificationHandled.current = handlingKey;
+
+    const cleanUrl = () => {
+      router.replace("/funding", { scroll: false });
+    };
+
+    if (payment === "cancelled") {
+      toast.info("Payment was cancelled. No fund was added.");
+      cleanUrl();
+      return;
+    }
+
+    if (payment !== "success") {
+      cleanUrl();
+      return;
+    }
+
+    if (!sessionId) {
+      toast.error("We couldn't verify the payment yet. Please try again.");
+      cleanUrl();
+      return;
+    }
+
+    const verifyPayment = async () => {
+      try {
+        const result = await apiFetchJSON(
+          `/api/funding/verify-session/${encodeURIComponent(sessionId)}`
+        );
+
+        if (result?.success && result.paid === true && result.status === "paid") {
+          toast.success("Fund payment successful. Thank you for supporting BloodBridge!");
+          await fetchFunding();
+        } else if (result?.success && result.paid === false) {
+          toast.info("Payment is still being confirmed. Please check again shortly.");
+        } else {
+          toast.error("We couldn't verify the payment yet. Please try again.");
+        }
+      } catch {
+        toast.error("We couldn't verify the payment yet. Please try again.");
+      } finally {
+        cleanUrl();
+      }
+    };
+
+    verifyPayment();
+  }, [fetchFunding, router, searchParams]);
 
   const totalFunding = useMemo(() => {
-    return data.reduce((total, record) => total + record.amount, 0);
-  }, [data]);
+    return records.reduce((total, record) => total + (record.amount || 0), 0);
+  }, [records]);
 
-  const totalSupporters = data.length;
+  const totalSupporters = records.length;
 
   const averageContribution =
     totalSupporters > 0
       ? Math.round(totalFunding / totalSupporters)
       : 0;
 
-  const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(records.length / ITEMS_PER_PAGE));
 
-  const currentRecords = data.slice(
+  const currentRecords = records.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-BD", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "BDT",
+      currency: "USD",
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const formatDate = (date) => {
+    if (!date) return "—";
     return new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
       month: "short",
@@ -111,18 +198,13 @@ export default function FundingPage({
   };
 
   const getInitials = (name) => {
+    if (!name) return "?";
     return name
       .split(" ")
       .slice(0, 2)
       .map((word) => word.charAt(0))
       .join("")
       .toUpperCase();
-  };
-
-  const handleDonateClick = () => {
-    if (typeof onDonate === "function") {
-      onDonate();
-    }
   };
 
   return (
@@ -172,26 +254,7 @@ export default function FundingPage({
               </p>
 
               {/* CTA */}
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleDonateClick}
-                  className="group inline-flex items-center gap-2 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_24px_rgba(214,40,57,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#B91C2B] hover:shadow-[0_12px_30px_rgba(214,40,57,0.25)]"
-                >
-                  <Heart
-                    size={16}
-                    fill="currentColor"
-                    strokeWidth={2.5}
-                  />
-
-                  Give Fund
-
-                  <ArrowUpRight
-                    size={15}
-                    className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  />
-                </button>
-
+              {/* <div className="mt-7 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 px-2 text-xs font-medium text-[#64748B]">
                   <ShieldCheck
                     size={16}
@@ -199,6 +262,27 @@ export default function FundingPage({
                   />
                   Transparent community support
                 </div>
+              </div> */}
+              
+              <div className="mt-7 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsFundModalOpen(true)}
+                  className="group inline-flex items-center gap-2.5 rounded-xl bg-[#D62839] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#D62839]/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#A4161A] hover:shadow-xl hover:shadow-[#D62839]/25 active:translate-y-0"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 transition-transform duration-300 group-hover:scale-110">
+                    <Heart size={15} fill="currentColor" strokeWidth={2.2} />
+                  </span>
+
+                  <span>Give Fund</span>
+
+                  <ArrowUpRight
+                    size={15}
+                    className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  />
+                </button>
+
+
               </div>
             </div>
 
@@ -209,7 +293,7 @@ export default function FundingPage({
 
                 <div className="relative">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D62839] text-white shadow-lg shadow-[#D62839]/20">
-                    <HandHeartIcon />
+                    <Heart size={18} strokeWidth={2.2} />
                   </div>
 
                   <p className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-[#94A3B8]">
@@ -217,7 +301,7 @@ export default function FundingPage({
                   </p>
 
                   <p className="mt-2 text-3xl font-black tracking-tight text-[#0F172A]">
-                    {formatCurrency(totalFunding)}
+                    {loading ? "Loading..." : formatCurrency(totalFunding)}
                   </p>
 
                   <p className="mt-2 text-xs leading-5 text-[#64748B]">
@@ -226,7 +310,7 @@ export default function FundingPage({
 
                   <div className="mt-6 flex items-center gap-3 border-t border-[#E2E8F0] pt-5">
                     <div className="flex -space-x-2">
-                      {data
+                      {records
                         .slice(0, 4)
                         .map((record) => (
                           <div
@@ -241,7 +325,7 @@ export default function FundingPage({
                     <p className="text-[11px] font-medium text-[#64748B]">
                       Supported by{" "}
                       <span className="font-bold text-[#0F172A]">
-                        {totalSupporters}+ people
+                        {totalSupporters} people
                       </span>
                     </p>
                   </div>
@@ -272,7 +356,7 @@ export default function FundingPage({
                   </p>
 
                   <p className="mt-2 text-2xl font-black tracking-tight text-[#0F172A]">
-                    {formatCurrency(totalFunding)}
+                    {loading ? "Loading..." : formatCurrency(totalFunding)}
                   </p>
 
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600">
@@ -298,7 +382,7 @@ export default function FundingPage({
                   </p>
 
                   <p className="mt-2 text-2xl font-black tracking-tight text-[#0F172A]">
-                    {totalSupporters}
+                    {loading ? "Loading..." : totalSupporters}
                   </p>
 
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-[#64748B]">
@@ -324,7 +408,7 @@ export default function FundingPage({
                   </p>
 
                   <p className="mt-2 text-2xl font-black tracking-tight text-[#0F172A]">
-                    {formatCurrency(averageContribution)}
+                    {loading ? "Loading..." : formatCurrency(averageContribution)}
                   </p>
 
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-[#64748B]">
@@ -349,7 +433,7 @@ export default function FundingPage({
               <div>
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FDECEF] text-[#D62839]">
-                    <HandHeartIcon size={15} />
+                    <Heart size={15} strokeWidth={2.2} />
                   </div>
 
                   <h2 className="text-sm font-black text-[#0F172A]">
@@ -363,9 +447,15 @@ export default function FundingPage({
               </div>
 
               <div className="self-start rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[10px] font-bold text-[#64748B]">
-                {data.length} contributions
+                {loading ? "Loading..." : `${records.length} contributions`}
               </div>
             </div>
+
+            {error && (
+              <div className="px-5 py-4 text-sm text-red-600">
+                {error}
+              </div>
+            )}
 
             {/* Desktop Table */}
             <div className="hidden overflow-x-auto md:block">
@@ -400,7 +490,7 @@ export default function FundingPage({
                   ) : currentRecords.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-6 py-8 text-center text-xs text-[#94A3B8]">
-                        No records found.
+                        No funding records found.
                       </td>
                     </tr>
                   ) : (
@@ -472,7 +562,7 @@ export default function FundingPage({
                 </div>
               ) : currentRecords.length === 0 ? (
                 <div className="px-4 py-8 text-center text-xs text-[#94A3B8]">
-                  No records found.
+                  No funding records found.
                 </div>
               ) : (
                 currentRecords.map((record) => (
@@ -520,7 +610,7 @@ export default function FundingPage({
             </div>
 
             {/* Pagination */}
-            {!loading && data.length > ITEMS_PER_PAGE && (
+            {!loading && records.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between border-t border-slate-100 bg-[#FAFBFC] px-4 py-3.5 sm:px-6">
                 <p className="text-[10px] font-medium text-[#94A3B8]">
                   Showing{" "}
@@ -531,12 +621,12 @@ export default function FundingPage({
                   <span className="font-bold text-[#64748B]">
                     {Math.min(
                       currentPage * ITEMS_PER_PAGE,
-                      data.length
+                      records.length
                     )}
                   </span>{" "}
                   of{" "}
                   <span className="font-bold text-[#64748B]">
-                    {data.length}
+                    {records.length}
                   </span>
                 </p>
 
@@ -576,11 +666,77 @@ export default function FundingPage({
           </div>
         </div>
       </section>
+
+      <Modal
+        isOpen={isFundModalOpen}
+        onClose={closeFundModal}
+        title="Give Fund"
+        width="max-w-md"
+      >
+        <form onSubmit={handleCreateCheckout} className="space-y-5">
+          <div>
+            <label
+              htmlFor="donor-name"
+              className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-[#64748B]"
+            >
+              Your name
+            </label>
+            <input
+              id="donor-name"
+              type="text"
+              value={donorName}
+              onChange={(event) => setDonorName(event.target.value)}
+              placeholder="Your name"
+              disabled={isCreatingCheckout}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-[#0F172A] outline-none transition focus:border-[#D62839] focus:ring-4 focus:ring-[#FDECEF] disabled:bg-slate-50"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="fund-amount"
+              className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-[#64748B]"
+            >
+              Amount in USD
+            </label>
+            <div className="relative">
+              <input
+                id="fund-amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={fundAmount}
+                onChange={(event) => setFundAmount(event.target.value)}
+                placeholder="10"
+                disabled={isCreatingCheckout}
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-16 text-sm text-[#0F172A] outline-none transition focus:border-[#D62839] focus:ring-4 focus:ring-[#FDECEF] disabled:bg-slate-50"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold text-[#D62839]">
+                USD
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={closeFundModal}
+              disabled={isCreatingCheckout}
+              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-[#64748B] transition hover:border-[#D62839] hover:text-[#D62839] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingCheckout}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D62839] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#D62839]/20 transition hover:bg-[#A4161A] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Heart size={15} fill="currentColor" />
+              {isCreatingCheckout ? "Creating payment..." : "Continue to Payment"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </main>
   );
-}
-
-/* Small reusable icon wrapper */
-function HandHeartIcon({ size = 18 }) {
-  return <Heart size={size} strokeWidth={2.2} />;
 }

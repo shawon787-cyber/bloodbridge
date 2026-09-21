@@ -3,16 +3,13 @@
 import { useState, useEffect, useCallback, useContext } from "react";
 import { createContext } from "react";
 import {
-  getDonationRequests,
-  createDonationRequest as createDonationRequestAction,
-  updateDonationRequestStatus as updateDonationRequestStatusAction,
-} from "@/lib/actions/donationRequests";
-import {
   normalizeStatusForCompare,
   getStatusDisplayLabel,
   DONATION_REQUEST_STATUSES,
 } from "@/lib/donationRequests";
+import { api, apiFetchJSON } from "@/lib/api";
 import { toast } from "sonner";
+import { getDistrictName, getUpazilaName } from "@/lib/locationUtils";
 
 const buildLocation = (raw) => {
   if (!raw) return { name: "", districtName: "", upazilaName: "" };
@@ -60,10 +57,16 @@ const normalizeRequest = (req) => {
   const upazilaId = req.upazilaId || req.upazila || "";
 
   const districtName =
-    req.districtName || location.districtName || "";
+    req.districtName ||
+    location.districtName ||
+    getDistrictName(req.district || req.districtId) ||
+    "";
 
   const upazilaName =
-    req.upazilaName || location.upazilaName || "";
+    req.upazilaName ||
+    location.upazilaName ||
+    getUpazilaName(req.upazila || req.upazilaId) ||
+    "";
 
   const id = req.id || req.requestId || req._id || `DR-${Date.now()}`;
   const createdAt = req.createdAt || new Date().toISOString();
@@ -133,7 +136,7 @@ export function DonationRequestProvider({ children }) {
 
     const fetchRequests = async () => {
       try {
-        const result = await getDonationRequests();
+        const result = await apiFetchJSON("/api/donation-requests");
         if (isMounted && result.success && Array.isArray(result.data)) {
           setRequests(result.data.map(normalizeRequest).filter(Boolean));
         }
@@ -155,7 +158,7 @@ export function DonationRequestProvider({ children }) {
   }, []);
 
   const addDonationRequest = useCallback(async (requestData) => {
-    const result = await createDonationRequestAction(requestData);
+    const result = await api.post("/api/donation-requests", requestData);
     if (result?.blocked) {
       const message = result?.message || "Your account is blocked. You cannot create a donation request.";
       const error = new Error(message);
@@ -171,7 +174,7 @@ export function DonationRequestProvider({ children }) {
   const refreshDonationRequests = useCallback(async () => {
     console.log("Refreshing donation requests...");
     try {
-      const result = await getDonationRequests();
+      const result = await apiFetchJSON("/api/donation-requests");
       console.log("Donation requests from backend:", result);
       if (result.success && Array.isArray(result.data)) {
         setRequests(result.data.map(normalizeRequest).filter(Boolean));
@@ -211,7 +214,7 @@ export function DonationRequestProvider({ children }) {
   const updateDonationRequestStatus = useCallback(async (requestId, newStatus) => {
     setUpdatingStatusId(requestId);
     try {
-      const result = await updateDonationRequestStatusAction(requestId, newStatus);
+      const result = await api.patch(`/api/donation-requests/${requestId}/status`, { status: newStatus });
       if (!result?.success) {
         throw new Error(result?.message || "Failed to update request status");
       }

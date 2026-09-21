@@ -103,7 +103,7 @@ const Footer = () => {
 
               <li>
                 <Link
-                  href="/search"
+                  href="/search-donors"
                   className="text-sm text-slate-500 transition-colors hover:text-[#D62839]"
                 >
                   Search Donors
