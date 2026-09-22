@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Heart,
@@ -19,7 +19,7 @@ import Modal from "@/Components/dashboard/shared/Modal";
 
 const ITEMS_PER_PAGE = 5;
 
-export default function FundingPage() {
+ function FundingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verificationHandled = useRef("");
@@ -738,5 +738,12 @@ export default function FundingPage() {
         </form>
       </Modal>
     </main>
+  );
+}
+export default function FundingPage() {
+  return (
+    <Suspense fallback={null}>
+      <FundingContent />
+    </Suspense>
   );
 }
