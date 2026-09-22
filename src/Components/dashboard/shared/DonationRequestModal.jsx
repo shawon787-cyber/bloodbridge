@@ -75,7 +75,7 @@ const DonationRequestModal = ({ isOpen, onClose, request, children, title = "Req
                       request.urgency
                     )}`}
                   >
-                    {request.urgency}
+                    {request.urgency || "—"}
                   </span>
                 </p>
               </div>

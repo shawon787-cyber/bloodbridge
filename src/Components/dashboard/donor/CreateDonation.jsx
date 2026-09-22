@@ -261,15 +261,31 @@ export default function CreateDonation() {
       );
 
       const submissionData = {
-        ...formData,
+        requesterName: formData.requesterName,
+        requesterEmail: formData.requesterEmail,
+        phoneNumber: formData.phoneNumber,
+        contactNumber: formData.phoneNumber || "",
+        recipientName: formData.recipientName,
+        hospitalName: formData.hospitalName,
+        district: formData.district || "",
         districtId: formData.district,
         districtName: selectedDistrict?.name || "",
         districtBnName: selectedDistrict?.bn_name || "",
+        upazila: formData.upazila || "",
         upazilaId: formData.upazila,
         upazilaName: selectedUpazila?.name || "",
+        bloodGroup: formData.bloodGroup,
+        units: formData.units,
+        donationDate: formData.donationDate || null,
+        donationTime: formData.donationTime || "",
+        urgency: formData.urgency || "Urgent",
+        address: formData.address || "",
+        fullAddress: formData.address || "",
+        message: formData.message || "",
+        requestMessage: formData.message || "",
       };
 
-      console.log("Submitting donation request:", submissionData);
+      console.log("Donation request payload:", submissionData);
 
       const response = await addDonationRequest(submissionData);
 

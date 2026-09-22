@@ -103,7 +103,7 @@ const DonationRequestTable = ({
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${getUrgencyStyle(req.urgency)}`}
                     >
-                      {req.urgency}
+                      {req.urgency || "—"}
                     </span>
                   </td>
                   <td className="px-5 py-4">

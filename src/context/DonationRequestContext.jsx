@@ -32,7 +32,9 @@ const buildLocation = (raw) => {
 const normalizeRequest = (req) => {
   if (!req || typeof req !== "object") return null;
 
-  const location = buildLocation(req.location || req.address || "");
+  const location = buildLocation(
+    req.location || req.address || req.fullAddress || ""
+  );
 
   const rawUnits = req.units;
   let normalizedUnits = "1";
@@ -90,12 +92,12 @@ const normalizeRequest = (req) => {
       districtName,
       upazilaId: String(upazilaId),
       upazilaName,
-      address: req.address || location.name || "",
+      address: req.address || req.fullAddress || location.name || "",
     },
     requiredDate: rawDate,
     requiredTime: rawTime,
-    urgency: req.urgency || "",
-    message: req.message || req.description || "",
+    urgency: req.urgency || "Urgent",
+    message: req.message || req.requestMessage || req.description || "",
     status,
     createdAt,
     updatedAt: req.updatedAt || createdAt,
@@ -115,9 +117,13 @@ const normalizeRequest = (req) => {
     units: normalizedUnits,
     donationDate: rawDate,
     donationTime: rawTime,
-    address: req.address || location.name || "",
-    contact: req.contact || requesterName,
-    description: req.message || req.description || "",
+    address: req.address || req.fullAddress || location.name || "",
+    fullAddress: req.fullAddress || req.address || location.name || "",
+    contact: req.contact || req.contactNumber || requesterName,
+    contactNumber: req.contactNumber || req.contact || "",
+    message: req.message || req.requestMessage || req.description || "",
+    requestMessage: req.requestMessage || req.message || req.description || "",
+    description: req.message || req.requestMessage || req.description || "",
     patient: recipientName,
     location: location.name,
     statusDisplayLabel: getStatusDisplayLabel(status),
@@ -158,7 +164,16 @@ export function DonationRequestProvider({ children }) {
   }, []);
 
   const addDonationRequest = useCallback(async (requestData) => {
-    const result = await api.post("/api/donation-requests", requestData);
+    const submissionData = {
+      ...requestData,
+      fullAddress: requestData.fullAddress ?? requestData.address ?? "",
+      requestMessage: requestData.requestMessage ?? requestData.message ?? "",
+      contactNumber: requestData.contactNumber ?? requestData.phoneNumber ?? "",
+      urgency: requestData.urgency || "Urgent",
+    };
+    console.log("Donation request payload:", submissionData);
+
+    const result = await api.post("/api/donation-requests", submissionData);
     if (result?.blocked) {
       const message = result?.message || "Your account is blocked. You cannot create a donation request.";
       const error = new Error(message);
